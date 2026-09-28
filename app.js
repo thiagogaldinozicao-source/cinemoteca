@@ -1,5 +1,5 @@
-import * as tmdb from "./tmdb.js";
-import * as store from "./store.js";
+import * as tmdb from "./tmdb.js?v=5";
+import * as store from "./store.js?v=5";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -480,12 +480,20 @@ async function importTitles(titles) {
     while (next < list.length) {
       const k = next++, t = list[k];
       try {
-        const r = await tmdb.findBest({ q: t.q, original: t.original, title: t.title, year: +t.year || null, type: t.type === "tv" ? "tv" : t.type === "movie" ? "movie" : null });
+        const ask = () => tmdb.findBest({ q: t.q, original: t.original, title: t.title, year: +t.year || null, type: t.type === "tv" ? "tv" : t.type === "movie" ? "movie" : null });
+        let r;
+        try { r = await ask(); }
+        catch (e1) {
+          if (e1.kind !== "rate" && e1.kind !== "network" && e1.kind !== "http") throw e1;
+          await new Promise(res => setTimeout(res, 1500));
+          r = await ask();
+        }
         if (!r) missed.push(t.title || t.q);
         else {
           if (r.loose) loose.push(`${t.title} → ${r.media.title}${r.media.year ? " (" + r.media.year + ")" : ""}`);
           const status = t.status === "seen" ? "seen" : "want";
           if (store.addImported(r.media, { status, memo: t.memo, order: k, note: +t.note || 0 })) added++; else dup++;
+          if ((added + dup) % 10 === 0) store.flush();
         }
       } catch (e) {
         if (e.kind === "bad_key" || e.kind === "no_key") { missed.push(t.title); next = list.length; toast(errorText(e)); }
@@ -494,9 +502,13 @@ async function importTitles(titles) {
       done++; show();
     }
   }
-  await Promise.all([worker(), worker(), worker(), worker()]);
-  store.flush();
-  importing = false;
+  if (typeof store.addImported !== "function" || typeof tmdb.findBest !== "function") {
+    importing = false;
+    box.innerHTML = "⚠️ O app está numa versão antiga guardada no celular. Fecha a aba, abre de novo e tenta outra vez.";
+    return;
+  }
+  try { await Promise.all([worker(), worker(), worker(), worker()]); }
+  finally { store.flush(); importing = false; }
   renderAjustes();
   const res = document.createElement("div");
   res.className = "notice";
