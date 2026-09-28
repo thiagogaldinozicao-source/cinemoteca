@@ -1,5 +1,6 @@
-import * as tmdb from "./tmdb.js?v=7";
-import * as store from "./store.js?v=7";
+import * as tmdb from "./tmdb.js?v=8";
+import * as store from "./store.js?v=8";
+import * as now from "./now.js?v=8";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -88,6 +89,7 @@ function renderLista() {
   }
 
   view.innerHTML = `
+    ${want.length ? `<button class="nowbar" id="nowBtn"><span>🍿 <b>O que ver agora?</b></span><span class="nowslot">${esc(now.slotFor().label)} ›</span></button>` : ""}
     <div class="seg" role="tablist">
       <button role="tab" class="${listSeg === "want" ? "on" : ""}" data-seg="want">Quero ver <b>${want.length}</b></button>
       <button role="tab" class="${listSeg === "seen" ? "on" : ""}" data-seg="seen">Já vi <b>${seen.length}</b></button>
@@ -98,6 +100,7 @@ function renderLista() {
     ${src.length ? `<ol class="queue">${src.map((m, k) => rowHTML(m, k, src.length)).join("")}</ol>`
       : `<p class="muted center pad">${listSeg === "want" ? "Nada aqui nesse filtro." : "Quando marcar algo como visto, aparece aqui."}</p>`}
   `;
+  const nb = $("#nowBtn"); if (nb) nb.onclick = openNow;
   view.querySelectorAll("[data-seg]").forEach(b => b.onclick = () => { listSeg = b.dataset.seg; renderLista(); });
   view.querySelectorAll("[data-type]").forEach(b => b.onclick = () => { listType = b.dataset.type; renderLista(); });
   view.querySelectorAll(".row").forEach(r => r.onclick = e => {
@@ -205,7 +208,9 @@ function quickAdd(m, el) {
 
 // ---------- DETALHES (folha de baixo) ----------
 let detailsCtl = null;
+let sheetToken = 0;
 function openSheet(html) {
+  sheetToken++;
   sheet.innerHTML = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>${html}`;
   sheet.scrollTop = 0;
   document.body.classList.add("sheet-open");
@@ -227,6 +232,7 @@ async function openDetails(m) {
   try {
     const d = await tmdb.details(m.type, m.id, { signal: ctl.signal });
     if (ctl !== detailsCtl || !document.body.classList.contains("sheet-open")) return;
+    if (store.get(d.key)) store.setMeta(d.key, { runtime: d.runtime, epRuntime: d.epRuntime, genreIds: d.genreIds });
     const top = sheet.scrollTop;
     sheet.innerHTML = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>${detailsHTML(d, d)}`;
     $(".close", sheet).onclick = closeSheet;
@@ -373,13 +379,62 @@ function refreshSheet(m) {
 }
 
 // ---------- SORTEIO ----------
-$("#dice").onclick = () => {
-  const want = store.all().filter(i => i.status === "want");
-  if (!want.length) { toast("Adiciona uns títulos em Quero ver primeiro 😉"); return; }
-  const pick = want[Math.floor(Math.random() * want.length)];
-  toast("🎲 Hoje é dia de…");
-  openDetails(pick);
-};
+$("#dice").onclick = () => openNow();
+
+// ---------- O QUE VER AGORA ----------
+async function openNow() {
+  const want = () => store.all().filter(i => i.status === "want");
+  if (!want().length) { toast("Adiciona uns títulos em Quero ver primeiro 😉"); return; }
+  const slot = now.slotFor();
+  openSheet(`
+    <div class="nowhead"><div class="lbl">O que ver agora</div><h2>${esc(slot.label)}</h2></div>
+    <div class="dbody" id="nowBody"><p class="muted">Pensando…</p></div>`);
+  const token = sheetToken;
+  const alive = () => token === sheetToken && document.body.classList.contains("sheet-open");
+  const body = () => $("#nowBody", sheet);
+
+  // Primeira vez: descobre a duração e os gêneros de cada título da fila.
+  const missing = want().filter(i => !i.metaAt);
+  if (missing.length && tmdb.getKey()) {
+    let done = 0, next = 0;
+    const show = () => { if (alive()) body().innerHTML = `<p class="muted">Vendo a duração dos seus títulos… <b>${done}</b> de <b>${missing.length}</b><br>Só demora assim na primeira vez.</p>`; };
+    show();
+    const worker = async () => {
+      while (next < missing.length) {
+        const m = missing[next++];
+        try { store.setMeta(m.key, await tmdb.meta(m.type, m.id), false); } catch (e) { /* tenta de novo outro dia */ }
+        done++; show();
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    store.flush();
+  }
+  if (!alive()) return;
+  const list = now.suggest(want(), slot, store.quality);
+  let idx = 0;
+  const render = () => {
+    const m = list[idx % list.length];
+    body().innerHTML = `
+      <div class="nowcard">
+        ${posterHTML(m, "w342", "dposter")}
+        <div class="htxt">
+          <h2>${esc(m.title)}</h2>
+          <div class="rmeta">${typeLabel(m.type)}${m.year ? " · " + esc(m.year) : ""}</div>
+          ${verdictHTML(m)}
+          <p class="nowwhy">${esc(now.reason(m, slot))}</p>
+        </div>
+      </div>
+      ${m.memo ? `<p class="syn nowmemo">📝 ${esc(m.memo)}</p>` : ""}
+      <div class="actions" style="margin-top:14px">
+        <button class="btn gold" id="nowOpen">Ver detalhes</button>
+        <button class="btn" id="nowNext">🔄 Outra sugestão</button>
+      </div>
+      <p class="tiny center">${idx + 1} de ${list.length} que combinam com agora</p>`;
+    $("#nowOpen", sheet).onclick = () => openDetails(m);
+    $("#nowNext", sheet).onclick = () => { idx++; render(); };
+  };
+  render();
+}
 
 // ---------- AJUSTES ----------
 function renderAjustes() {

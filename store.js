@@ -30,6 +30,9 @@ function slim(m) {
   return {
     key: m.key, id: m.id, type: m.type, title: m.title, original: m.original || "",
     year: m.year || "", poster: m.poster || "", vote: m.vote ?? null, votes: m.votes || 0,
+    ...(m.genreIds && m.genreIds.length ? { genreIds: m.genreIds.slice(0, 6) } : {}),
+    ...(m.runtime ? { runtime: m.runtime } : {}),
+    ...(m.epRuntime ? { epRuntime: m.epRuntime } : {}),
   };
 }
 
@@ -119,6 +122,15 @@ export function addImported(media, { status = "want", memo = "", order = null, n
     ...(order != null ? { order } : {}),
   };
   return true;
+}
+// Duração e gêneros (pro "O que ver agora?"). save=false junta várias antes de salvar.
+export function setMeta(key, meta, save = true) {
+  const it = state.items[key]; if (!it) return false;
+  if (meta.runtime) it.runtime = meta.runtime;
+  if (meta.epRuntime) it.epRuntime = meta.epRuntime;
+  if (meta.genreIds && meta.genreIds.length) it.genreIds = meta.genreIds.slice(0, 6);
+  it.metaAt = Date.now();
+  return save ? persist() : true;
 }
 export function flush() { const ok = persist(); emit(); return ok; }
 

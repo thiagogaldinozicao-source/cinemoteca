@@ -155,6 +155,7 @@ export async function details(type, id, opts) {
     genres: (d.genres || []).map(g => g.name),
     runtime: type === "movie" ? d.runtime : null,
     seasons: type === "tv" ? d.number_of_seasons : null,
+    epRuntime: type === "tv" ? epRun(d) : null,
     episodes: type === "tv" ? d.number_of_episodes : null,
     status: d.status || "",
     tagline: d.tagline || "",
@@ -164,6 +165,19 @@ export async function details(type, id, opts) {
     cast,
     director,
     recs: ((d.recommendations && d.recommendations.results) || []).slice(0, 12).map(r => normalize(r, r.media_type || type)),
+  };
+}
+
+function epRun(d) {
+  return (d.episode_run_time && d.episode_run_time[0]) || (d.last_episode_to_air && d.last_episode_to_air.runtime) || null;
+}
+// Só duração e gêneros (chamada leve, usada pra montar sugestões).
+export async function meta(type, id, opts) {
+  const d = await get(`/${type}/${id}`, { language: LANG }, opts);
+  return {
+    runtime: type === "movie" ? d.runtime || null : null,
+    epRuntime: type === "tv" ? epRun(d) : null,
+    genreIds: (d.genres || []).map(g => g.id),
   };
 }
 
