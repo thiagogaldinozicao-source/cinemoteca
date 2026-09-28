@@ -218,3 +218,14 @@ body.sheet-open .sheet{ transform:translateY(0); }
   .htxt h2{ font-size:28px; }
 }
 @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+
+/* ---------- entrar ---------- */
+body.auth nav.bottom, body.auth #dice{ display:none; }
+body.auth{ padding-bottom:var(--safe-b); }
+.login{ padding-top:40px; max-width:420px; margin:0 auto; }
+.lform input{ width:100%; background:#0d0d14; border:1px solid var(--line); border-radius:12px; padding:14px; color:var(--text);
+  font-size:16px; text-align:center; }
+.lform input:focus{ border-color:var(--gold); outline:none; }
+.lform input.code{ font-size:26px; letter-spacing:8px; font-weight:700; }
+.login .row2{ margin-top:14px; }
+.acct{ font-weight:600; font-size:15px; margin:4px 0 6px; word-break:break-all; }

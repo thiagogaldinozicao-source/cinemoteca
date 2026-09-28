@@ -1,4 +1,8 @@
 // Acesso à API do TMDB (https://developer.themoviedb.org).
+// Com a nuvem ligada, a busca passa pela função "tmdb" do Supabase, que guarda a
+// chave escondida no servidor. Sem nuvem, usa a chave colada em Ajustes.
+import * as cloud from "./cloud.js?v=9";
+
 const API = "https://api.themoviedb.org/3";
 const IMG = "https://image.tmdb.org/t/p/";
 const LANG = "pt-BR";
@@ -19,6 +23,10 @@ export function setLocalKey(k) {
     else localStorage.removeItem(KEY_STORAGE);
   } catch (e) { /* ignora */ }
 }
+// Dá pra buscar? (logado na nuvem, ou com chave própria no modo antigo)
+export function ready() {
+  return cloud.enabled ? !!cloud.currentUser() : !!getKey();
+}
 export function hasLocalKey() {
   try { return !!localStorage.getItem(KEY_STORAGE); } catch (e) { return false; }
 }
@@ -29,7 +37,9 @@ export class TmdbError extends Error {
 
 const cache = new Map();
 
-async function get(path, params = {}, { signal } = {}) {
+async function get(path, params = {}, opts = {}) {
+  if (cloud.enabled) return viaCloud(path, params, opts);
+  const { signal } = opts;
   const key = getKey();
   if (!key) throw new TmdbError("no_key", "Sem chave do TMDB");
   const url = new URL(API + path);
@@ -50,6 +60,37 @@ async function get(path, params = {}, { signal } = {}) {
   if (res.status === 401) throw new TmdbError("bad_key", "Chave do TMDB inválida");
   if (res.status === 429) throw new TmdbError("rate", "Muitas buscas seguidas");
   if (!res.ok) throw new TmdbError("http", "Erro " + res.status);
+  const data = await res.json();
+  cache.set(ck, data);
+  return data;
+}
+
+async function viaCloud(path, params, { signal } = {}) {
+  const url = new URL(cloud.functionsUrl("tmdb"));
+  url.searchParams.set("p", path);
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null) url.searchParams.set(k, v);
+  const ck = url.toString();
+  if (cache.has(ck)) return cache.get(ck);
+  if (!navigator.onLine) throw new TmdbError("network", "Sem conexão");
+  const token = await cloud.accessToken();
+  if (!token) throw new TmdbError("login", "Precisa entrar");
+  let res;
+  try {
+    res = await fetch(url, { headers: { Authorization: "Bearer " + token, apikey: cloud.publicKey() }, signal });
+  } catch (e) {
+    if (e.name === "AbortError") throw e;
+    throw new TmdbError("network", "Sem conexão");
+  }
+  if (!res.ok) {
+    let err = {};
+    try { err = await res.json(); } catch (e) { /* sem corpo */ }
+    if (res.status === 401) throw new TmdbError("login", "Precisa entrar de novo");
+    if (res.status === 404) throw new TmdbError("no_function", "Função tmdb não publicada");
+    if (err.error === "no_key") throw new TmdbError("server_key", "Falta a chave no servidor");
+    if (err.error === "bad_key") throw new TmdbError("server_key", "Chave do servidor inválida");
+    if (res.status === 429) throw new TmdbError("rate", "Muitas buscas seguidas");
+    throw new TmdbError("http", "Erro " + res.status);
+  }
   const data = await res.json();
   cache.set(ck, data);
   return data;

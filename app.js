@@ -1,6 +1,7 @@
-import * as tmdb from "./tmdb.js?v=8";
-import * as store from "./store.js?v=8";
-import * as now from "./now.js?v=8";
+import * as tmdb from "./tmdb.js?v=9";
+import * as store from "./store.js?v=9";
+import * as now from "./now.js?v=9";
+import * as cloud from "./cloud.js?v=9";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -41,6 +42,9 @@ function verdictHTML(m) {
 }
 function errorText(e) {
   if (!e) return "Deu um problema. Tenta de novo.";
+  if (e.kind === "login") return "Sua sessão venceu. Entra de novo em Ajustes.";
+  if (e.kind === "no_function") return "A busca ainda não foi ligada no servidor (função tmdb).";
+  if (e.kind === "server_key") return "A chave do TMDB no servidor não está funcionando.";
   if (e.kind === "no_key") return "Falta configurar a chave do TMDB em Ajustes.";
   if (e.kind === "bad_key") return "A chave do TMDB não funcionou. Confere em Ajustes.";
   if (e.kind === "network") return "Sem internet agora.";
@@ -59,13 +63,95 @@ function go(name) {
 }
 document.querySelectorAll("nav.bottom button").forEach(b => b.addEventListener("click", () => go(b.dataset.tab)));
 
+function needLogin() { return cloud.enabled && !cloud.currentUser(); }
 function render() {
+  document.body.classList.toggle("auth", needLogin());
+  if (needLogin()) { renderLogin(); return; }
   view.dataset.tab = tab;
   if (tab === "lista") renderLista();
   else if (tab === "buscar") renderBuscar();
   else renderAjustes();
 }
-store.onChange(() => { if (tab === "lista") renderLista(); });
+store.onChange(() => { if (!needLogin() && tab === "lista") renderLista(); });
+
+// Entrou/saiu da conta: redesenha tudo. Só mudou o status da nuvem: atualiza Ajustes.
+let wasLogged = !!cloud.currentUser();
+cloud.onChange(() => {
+  const logged = !!cloud.currentUser();
+  if (logged !== wasLogged) { wasLogged = logged; closeSheet(); tab = "lista"; go("lista"); return; }
+  if (!needLogin() && tab === "ajustes") { const el = $("#syncLine"); if (el) el.innerHTML = syncText(); }
+});
+window.addEventListener("cinemoteca:migrou", e => {
+  const { total, pending } = e.detail || {};
+  toast(pending ? `Sua lista (${total}) vai subir pra nuvem quando tiver internet` : `✅ Sua lista (${total}) subiu pra nuvem`);
+});
+
+// ---------- ENTRAR (login por código no e-mail) ----------
+let loginEmail = "";
+let loginStep = "email";
+function renderLogin() {
+  document.querySelectorAll("nav.bottom button").forEach(b => b.classList.remove("on"));
+  if (loginStep === "email") {
+    view.innerHTML = `
+      <div class="empty login">
+        <div class="empty-emoji">🎬</div>
+        <h2>Entra pra guardar sua lista</h2>
+        <p>Sua lista fica salva na sua conta: igual no celular e no computador, e só você vê. Sem senha: a gente manda um código pro seu e-mail.</p>
+        <form id="fEmail" class="lform">
+          <input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="seu@email.com" value="${esc(loginEmail)}" aria-label="Seu e-mail" required>
+          <button class="btn gold wide" id="send">Receber código</button>
+        </form>
+        ${store.all().length ? `<p class="tiny">A lista que já está neste aparelho (${store.all().length} títulos) vai junto pra sua conta.</p>` : ""}
+      </div>`;
+    const email = $("#email");
+    $("#fEmail").onsubmit = async e => {
+      e.preventDefault();
+      const v = email.value.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { toast("Confere o e-mail."); return; }
+      const b = $("#send"); b.disabled = true; b.textContent = "Enviando…";
+      try { await cloud.sendCode(v); loginEmail = v; loginStep = "code"; renderLogin(); }
+      catch (err) { toast(loginError(err)); b.disabled = false; b.textContent = "Receber código"; }
+    };
+    if (!loginEmail) setTimeout(() => email.focus(), 50);
+    return;
+  }
+  view.innerHTML = `
+    <div class="empty login">
+      <div class="empty-emoji">📬</div>
+      <h2>Olha seu e-mail</h2>
+      <p>Mandei um código pra <b>${esc(loginEmail)}</b>. Digita ele aqui.<br><span class="muted">Não chegou? Olha no Spam ou Promoções.</span></p>
+      <form id="fCode" class="lform">
+        <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="8" placeholder="Código" aria-label="Código do e-mail" class="code" required>
+        <button class="btn gold wide" id="enter">Entrar</button>
+      </form>
+      <div class="row2">
+        <button class="btn ghost" id="again">Mandar de novo</button>
+        <button class="btn ghost" id="other">Trocar e-mail</button>
+      </div>
+    </div>`;
+  const code = $("#code");
+  setTimeout(() => code.focus(), 50);
+  const submit = async () => {
+    const v = code.value.replace(/\D/g, "");
+    if (v.length < 6) { toast("O código tem 6 números (ou mais)."); return; }
+    const b = $("#enter"); b.disabled = true; b.textContent = "Entrando…";
+    try { await cloud.verifyCode(loginEmail, v); toast("Pronto, você entrou! 🎉"); loginStep = "email"; }
+    catch (err) { toast("Código errado ou vencido. Confere ou pede outro."); b.disabled = false; b.textContent = "Entrar"; }
+  };
+  $("#fCode").onsubmit = e => { e.preventDefault(); submit(); };
+  $("#again").onclick = async () => {
+    try { await cloud.sendCode(loginEmail); toast("Mandei outro código."); } catch (err) { toast(loginError(err)); }
+  };
+  $("#other").onclick = () => { loginStep = "email"; renderLogin(); };
+}
+function loginError(err) {
+  const m = String((err && err.message) || "").toLowerCase();
+  if (!navigator.onLine) return "Sem internet agora.";
+  if ((err && err.status === 429) || m.includes("rate") || m.includes("seconds")) return "Muitos e-mails em pouco tempo. Espera uns minutos e tenta de novo.";
+  if (m.includes("signups not allowed")) return "Cadastro de contas novas está desligado.";
+  if (m.includes("not authorized") || m.includes("not allowed")) return "Esse e-mail ainda não está liberado no app.";
+  return "Não consegui mandar o código. Tenta de novo.";
+}
 
 // ---------- MINHA LISTA ----------
 let listSeg = "want";
@@ -157,7 +243,7 @@ async function runSearch() {
   if (searchCtl) searchCtl.abort();
   const ctl = new AbortController(); searchCtl = ctl;
   const query = searchQuery.trim();
-  if (!tmdb.getKey()) {
+  if (!tmdb.ready()) {
     box.innerHTML = `<div class="notice">Pra buscar, falta colocar a chave do TMDB. <button class="link" id="goCfg">Ir pra Ajustes</button></div>`;
     $("#goCfg").onclick = () => go("ajustes");
     return;
@@ -179,7 +265,7 @@ async function runSearch() {
   } catch (e) {
     if (e.name === "AbortError") return;
     if (ctl !== searchCtl) return;
-    box.innerHTML = `<div class="notice">${esc(errorText(e))}${e.kind === "no_key" || e.kind === "bad_key" ? ` <button class="link" id="goCfg">Ir pra Ajustes</button>` : ""}</div>`;
+    box.innerHTML = `<div class="notice">${esc(errorText(e))}${["no_key", "bad_key", "login"].includes(e.kind) ? ` <button class="link" id="goCfg">Ir pra Ajustes</button>` : ""}</div>`;
     const g = $("#goCfg"); if (g) g.onclick = () => go("ajustes");
   }
 }
@@ -226,7 +312,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet()
 async function openDetails(m) {
   openSheet(detailsHTML(m, null));
   wireDetails(m);
-  if (!tmdb.getKey()) return;
+  if (!tmdb.ready()) return;
   if (detailsCtl) detailsCtl.abort();
   const ctl = new AbortController(); detailsCtl = ctl;
   try {
@@ -395,7 +481,7 @@ async function openNow() {
 
   // Primeira vez: descobre a duração e os gêneros de cada título da fila.
   const missing = want().filter(i => !i.metaAt);
-  if (missing.length && tmdb.getKey()) {
+  if (missing.length && tmdb.ready() && navigator.onLine) {
     let done = 0, next = 0;
     const show = () => { if (alive()) body().innerHTML = `<p class="muted">Vendo a duração dos seus títulos… <b>${done}</b> de <b>${missing.length}</b><br>Só demora assim na primeira vez.</p>`; };
     show();
@@ -440,10 +526,21 @@ async function openNow() {
 function renderAjustes() {
   const n = store.all().length;
   const local = tmdb.hasLocalKey();
+  const u = cloud.currentUser();
   view.innerHTML = `
     <h2 class="h">Ajustes</h2>
 
-    <div class="card">
+    ${u ? `<div class="card">
+      <div class="lbl">Sua conta</div>
+      <p class="acct">${esc(u.email)}</p>
+      <p class="muted small" id="syncLine">${syncText()}</p>
+      <div class="row2">
+        <button class="btn" id="syncNow">🔄 Sincronizar agora</button>
+        <button class="btn ghost" id="logout">Sair</button>
+      </div>
+    </div>` : ""}
+
+    ${cloud.enabled ? "" : `<div class="card">
       <div class="lbl">Chave do TMDB</div>
       <p class="muted small">É o que faz a busca funcionar. Ela fica salva só neste aparelho.</p>
       <input id="key" type="password" autocomplete="off" placeholder="${local ? "•••• chave salva" : "Cole aqui a chave ou o token"}">
@@ -452,7 +549,7 @@ function renderAjustes() {
         ${local ? `<button class="btn ghost" id="delKey">Apagar</button>` : ""}
       </div>
       <p class="tiny">Como pegar: crie uma conta grátis em themoviedb.org → Configurações → API → peça uma chave de uso pessoal.</p>
-    </div>
+    </div>`}
 
     <div class="card">
       <div class="lbl">Trazer lista da Cinemateca</div>
@@ -463,7 +560,7 @@ function renderAjustes() {
 
     <div class="card">
       <div class="lbl">Sua lista (${n} ${n === 1 ? "título" : "títulos"})</div>
-      <p class="muted small">Fica salva só neste celular. Faça um backup de vez em quando pra não perder se trocar de aparelho.</p>
+      <p class="muted small">${u ? "Fica salva na sua conta e também neste aparelho (abre sem internet). O backup é opcional, pra ter um arquivo seu." : "Fica salva só neste celular. Faça um backup de vez em quando pra não perder se trocar de aparelho."}</p>
       <div class="row2">
         <button class="btn" id="exp">⬇️ Fazer backup</button>
         <label class="btn" for="imp">⬆️ Restaurar</label>
@@ -479,7 +576,15 @@ function renderAjustes() {
 
     <p class="tiny center">Este produto usa a API do TMDB, mas não é endossado nem certificado pelo TMDB.<br>Dados de onde assistir fornecidos pela JustWatch.</p>
   `;
-  $("#saveKey").onclick = () => {
+  const sn = $("#syncNow"); if (sn) sn.onclick = () => { cloud.sync(); toast("Sincronizando…"); };
+  const lo = $("#logout"); if (lo) lo.onclick = async () => {
+    const pend = store.pendingCount();
+    if (!confirm(pend && !navigator.onLine
+      ? `Tem ${pend} alteração(ões) que ainda não subiram (sem internet). Elas ficam guardadas neste aparelho e sobem quando você entrar de novo. Sair mesmo?`
+      : "Sair da sua conta neste aparelho? Sua lista continua salva na nuvem.")) return;
+    await cloud.signOut();
+  };
+  const sk = $("#saveKey"); if (sk) sk.onclick = () => {
     const v = $("#key").value.trim();
     if (!v) { toast("Cola a chave primeiro."); return; }
     tmdb.setLocalKey(v); toast("Chave salva! Testa na busca."); renderAjustes();
@@ -510,8 +615,17 @@ function renderAjustes() {
     catch (err) { toast("Esse arquivo não é um backup da Cinemoteca."); }
   };
   const w = $("#wipe"); if (w) w.onclick = () => {
-    if (confirm("Apagar toda a sua lista deste aparelho? Isso não tem volta.")) { store.clearAll(); toast("Lista apagada"); renderAjustes(); }
+    if (confirm(u ? "Apagar toda a sua lista (na conta e em todos os aparelhos)? Isso não tem volta." : "Apagar toda a sua lista deste aparelho? Isso não tem volta.")) { store.clearAll(); toast("Lista apagada"); renderAjustes(); }
   };
+}
+
+function syncText() {
+  const s = cloud.syncStatus();
+  if (!s.online || s.status === "offline") return s.pending ? `📴 Sem internet. ${s.pending} alteração(ões) sobem quando voltar.` : "📴 Sem internet. Mostrando a lista guardada no aparelho.";
+  if (s.status === "syncing") return "🔄 Sincronizando…";
+  if (s.status === "error") return `⚠️ Não consegui falar com a nuvem agora.${s.pending ? ` ${s.pending} alteração(ões) esperando.` : ""} Tenta de novo daqui a pouco.`;
+  if (s.pending) return `⏳ ${s.pending} alteração(ões) esperando pra subir.`;
+  return "☁️ Tudo salvo na nuvem.";
 }
 
 // ---------- IMPORTAR LISTA DE TÍTULOS ----------
@@ -520,7 +634,7 @@ function renderAjustes() {
 let importing = false;
 async function importTitles(titles) {
   if (importing) return;
-  if (!tmdb.getKey()) { toast("Salva a chave do TMDB primeiro."); return; }
+  if (!tmdb.ready()) { toast(cloud.enabled ? "Entra na sua conta primeiro." : "Salva a chave do TMDB primeiro."); return; }
   importing = true;
   go("ajustes");
   const box = document.createElement("div");
@@ -577,7 +691,8 @@ async function importTitles(titles) {
 }
 
 // ---------- início ----------
-if (!store.all().length && tmdb.getKey()) go("buscar"); else render();
+cloud.start();
+if (!needLogin() && !store.all().length && tmdb.ready()) go("buscar"); else render();
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});

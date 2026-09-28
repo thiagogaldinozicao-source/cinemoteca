@@ -1,11 +1,17 @@
 // Configuração da Cinemoteca.
 //
-// TMDB_KEY: chave da API do TMDB (themoviedb.org). Aceita a "API Key" (v3)
-// ou o "API Read Access Token" (v4, o texto longo que começa com "eyJ").
+// SUPABASE_URL e SUPABASE_KEY: endereço do projeto e a chave PÚBLICA
+// ("publishable" ou "anon") do Supabase. Essas duas PODEM ficar aqui no
+// repositório público: são feitas pra ir no app. Quem protege as listas são
+// as regras do banco (cada pessoa só vê a própria).
 //
-// ATENÇÃO: este repositório é público. Uma chave colocada aqui fica visível
-// para qualquer pessoa. Para testar, prefira colar a chave em
-// Ajustes > Chave do TMDB dentro do app: ela fica salva só no seu aparelho.
+// NUNCA coloque aqui a chave "secret" / "service_role" do Supabase nem a chave
+// do TMDB. A do TMDB fica escondida no servidor (segredo TMDB_KEY da função).
+//
+// Com os dois campos vazios o app funciona no modo antigo (lista só no
+// aparelho e chave do TMDB colada em Ajustes).
 window.CINEMOTECA_CONFIG = {
+  SUPABASE_URL: "",
+  SUPABASE_KEY: "",
   TMDB_KEY: ""
 };
