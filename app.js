@@ -1,7 +1,7 @@
-import * as tmdb from "./tmdb.js?v=11";
-import * as store from "./store.js?v=11";
-import * as now from "./now.js?v=11";
-import * as cloud from "./cloud.js?v=11";
+import * as tmdb from "./tmdb.js?v=12";
+import * as store from "./store.js?v=12";
+import * as now from "./now.js?v=12";
+import * as cloud from "./cloud.js?v=12";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
