@@ -399,6 +399,13 @@ function renderAjustes() {
     </div>
 
     <div class="card">
+      <div class="lbl">Trazer lista da Cinemateca</div>
+      <p class="muted small">Na Cinemateca, toque em "📲 Levar pro app" → Copiar. Depois cole aqui.</p>
+      <textarea class="memo" id="pasteList" rows="3" placeholder="Toque aqui e escolha Colar"></textarea>
+      <button class="btn gold wide" id="pasteGo">⬇️ Importar lista</button>
+    </div>
+
+    <div class="card">
       <div class="lbl">Sua lista (${n} ${n === 1 ? "título" : "títulos"})</div>
       <p class="muted small">Fica salva só neste celular. Faça um backup de vez em quando pra não perder se trocar de aparelho.</p>
       <div class="row2">
@@ -422,6 +429,14 @@ function renderAjustes() {
     tmdb.setLocalKey(v); toast("Chave salva! Testa na busca."); renderAjustes();
   };
   const dk = $("#delKey"); if (dk) dk.onclick = () => { tmdb.setLocalKey(""); toast("Chave apagada"); renderAjustes(); };
+  $("#pasteGo").onclick = () => {
+    const txt = $("#pasteList").value.trim();
+    if (!txt) { toast("Cola a lista primeiro."); return; }
+    let data;
+    try { data = JSON.parse(txt.slice(txt.indexOf("{"), txt.lastIndexOf("}") + 1)); } catch (e) { data = null; }
+    if (!data || !Array.isArray(data.titles)) { toast("Não reconheci. Copia de novo lá na Cinemateca."); return; }
+    importTitles(data.titles);
+  };
   $("#exp").onclick = () => {
     const blob = new Blob([store.exportJSON()], { type: "application/json" });
     const a = document.createElement("a");
