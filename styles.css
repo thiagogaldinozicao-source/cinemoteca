@@ -5,7 +5,8 @@
   --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
 }
 *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-html{ color-scheme:dark; }
+html{ color-scheme:dark; -webkit-text-size-adjust:100%; }
+html, body{ overflow-x:hidden; }
 body{ background:var(--bg); color:var(--text); font-family:'Sora',system-ui,sans-serif; min-height:100vh;
   padding-bottom:calc(76px + var(--safe-b)); -webkit-font-smoothing:antialiased; }
 button{ font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
@@ -147,14 +148,14 @@ body.sheet-open .sheet{ transform:translateY(0); }
 
 .why{ font-size:13.5px; line-height:1.5; margin:2px 0 14px; }
 .memo{ width:100%; background:#0d0d14; border:1px solid var(--line); border-radius:12px; padding:10px 12px; color:var(--text);
-  font:inherit; font-size:14px; resize:vertical; outline:none; }
+  font:inherit; font-size:16px; resize:vertical; outline:none; }
 .memo:focus{ border-color:var(--gold); }
 .rmemo{ font-size:12px; color:#cfcfd8; margin:-2px 0 6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 /* ajustes */
 .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 16px 16px; margin-bottom:12px; }
 .card .lbl{ margin-top:0; }
-.card input[type=password]{ width:100%; background:#0d0d14; border:1px solid var(--line); border-radius:12px; padding:12px 14px; color:var(--text); font-size:15px; }
+.card input[type=password]{ width:100%; background:#0d0d14; border:1px solid var(--line); border-radius:12px; padding:12px 14px; color:var(--text); font-size:16px; }
 .row2{ display:flex; gap:8px; margin-top:10px; }
 .row2 .btn{ flex:1; }
 

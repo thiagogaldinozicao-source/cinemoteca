@@ -153,6 +153,8 @@ export async function details(type, id, opts) {
 // Veredito honesto a partir da nota e do número de votos do público no TMDB.
 export function verdict(vote, votes) {
   if (vote == null || votes < 50) return { label: "Sem nota ainda", cls: "none", emoji: "❔", why: "Pouca gente avaliou ainda. Vale conferir o trailer." };
+  // Com poucos votos (lançamento recente) a nota costuma vir inflada pelos fãs.
+  if (vote >= 7.8 && votes < 300) return { label: "Vale a pena", cls: "v", emoji: "✅", why: "Começou muito bem avaliado, mas ainda com poucos votos. Pode mudar." };
   if (vote >= 7.8) return { label: "Vale muito", cls: "vm", emoji: "🔥", why: "Aclamado pelo público. Prioridade na fila." };
   if (vote >= 7.0) return { label: "Vale a pena", cls: "v", emoji: "✅", why: "Bem avaliado. Boa escolha pra hoje." };
   if (vote >= 6.0) return { label: "Sessão da tarde", cls: "mm", emoji: "🍿", why: "Diverte sem compromisso. Bom pra desligar a cabeça." };
