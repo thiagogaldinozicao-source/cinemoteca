@@ -6,7 +6,7 @@
 }
 *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 html{ color-scheme:dark; -webkit-text-size-adjust:100%; }
-html, body{ overflow-x:hidden; }
+html{ overflow-x:hidden; }
 body{ background:var(--bg); color:var(--text); font-family:'Sora',system-ui,sans-serif; min-height:100vh;
   padding-bottom:calc(76px + var(--safe-b)); -webkit-font-smoothing:antialiased; }
 button{ font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
