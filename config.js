@@ -11,7 +11,7 @@
 // Com os dois campos vazios o app funciona no modo antigo (lista só no
 // aparelho e chave do TMDB colada em Ajustes).
 window.CINEMOTECA_CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_KEY: "",
+  SUPABASE_URL: "https://tcdsohxqqpktanfklpgi.supabase.co",
+  SUPABASE_KEY: "sb_publishable_8kjom4laQuSN_9qCkIoZQg_HAZCgvdd",
   TMDB_KEY: ""
 };
