@@ -212,6 +212,17 @@ body.sheet-open .sheet{ transform:translateY(0); }
   nav.bottom button.on{ background:var(--gold-dim); }
   nav.bottom button.on .ni{ transform:none; }
   .toast{ bottom:28px; }
+  /* Lista: "O que ver agora", Quero ver/Já vi e filtros numa linha só */
+  .lhead{ display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .lhead .nowbar{ max-width:none; flex:1.2; margin:0; }
+  .lhead .seg{ max-width:none; flex:1; }
+  .lhead .chips{ margin:0; flex:none; }
+  .queue, .results{ gap:12px; }
+  .row, .res{ padding:12px 14px; }
+  .thumb{ width:62px; height:93px; }
+  .rtitle{ font-size:16px; }
+  .rmemo{ white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .sheet .grab{ display:none; }
   .dposter{ width:140px; height:210px; }
   .hero{ padding:56px 24px 20px; }
   .dbody{ padding:4px 24px 14px; }

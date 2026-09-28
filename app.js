@@ -1,7 +1,7 @@
-import * as tmdb from "./tmdb.js?v=10";
-import * as store from "./store.js?v=10";
-import * as now from "./now.js?v=10";
-import * as cloud from "./cloud.js?v=10";
+import * as tmdb from "./tmdb.js?v=11";
+import * as store from "./store.js?v=11";
+import * as now from "./now.js?v=11";
+import * as cloud from "./cloud.js?v=11";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -175,6 +175,7 @@ function renderLista() {
   }
 
   view.innerHTML = `
+    <div class="lhead">
     ${want.length ? `<button class="nowbar" id="nowBtn"><span>🍿 <b>O que ver agora?</b></span><span class="nowslot">${esc(now.slotFor().label)} ›</span></button>` : ""}
     <div class="seg" role="tablist">
       <button role="tab" class="${listSeg === "want" ? "on" : ""}" data-seg="want">Quero ver <b>${want.length}</b></button>
@@ -182,6 +183,7 @@ function renderLista() {
     </div>
     <div class="chips">
       ${[["all", "Tudo"], ["movie", "Filmes"], ["tv", "Séries"]].map(([k, l]) => `<button class="chip ${listType === k ? "on" : ""}" data-type="${k}">${l}</button>`).join("")}
+    </div>
     </div>
     ${src.length ? `<ol class="queue">${src.map((m, k) => rowHTML(m, k, src.length)).join("")}</ol>`
       : `<p class="muted center pad">${listSeg === "want" ? "Nada aqui nesse filtro." : "Quando marcar algo como visto, aparece aqui."}</p>`}
@@ -307,7 +309,15 @@ function closeSheet() {
   document.body.classList.remove("sheet-open");
 }
 sheetBg.onclick = closeSheet;
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeSheet();
+  // No computador: "/" abre a busca.
+  const typing = /^(INPUT|TEXTAREA)$/.test((e.target && e.target.tagName) || "");
+  if (e.key === "/" && !typing && !needLogin() && !document.body.classList.contains("sheet-open")) {
+    e.preventDefault();
+    if (tab !== "buscar") go("buscar"); else { const q = $("#q"); if (q) q.focus(); }
+  }
+});
 
 async function openDetails(m) {
   openSheet(detailsHTML(m, null));
