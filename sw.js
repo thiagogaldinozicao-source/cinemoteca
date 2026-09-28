@@ -1,7 +1,7 @@
 // Guarda a "casca" do app para abrir rápido e funcionar sem internet.
 // A busca e as capas continuam vindo da internet.
-const CACHE = "cinemoteca-v6";
-const V = "?v=6";
+const CACHE = "cinemoteca-v7";
+const V = "?v=7";
 const SHELL = ["./", "index.html", "styles.css" + V, "app.js" + V, "tmdb.js" + V, "store.js" + V, "config.js" + V,
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 

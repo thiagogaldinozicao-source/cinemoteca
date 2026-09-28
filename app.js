@@ -1,5 +1,5 @@
-import * as tmdb from "./tmdb.js?v=6";
-import * as store from "./store.js?v=6";
+import * as tmdb from "./tmdb.js?v=7";
+import * as store from "./store.js?v=7";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -59,6 +59,7 @@ function go(name) {
 document.querySelectorAll("nav.bottom button").forEach(b => b.addEventListener("click", () => go(b.dataset.tab)));
 
 function render() {
+  view.dataset.tab = tab;
   if (tab === "lista") renderLista();
   else if (tab === "buscar") renderBuscar();
   else renderAjustes();
@@ -205,7 +206,7 @@ function quickAdd(m, el) {
 // ---------- DETALHES (folha de baixo) ----------
 let detailsCtl = null;
 function openSheet(html) {
-  sheet.innerHTML = `<div class="grab"></div><button class="close" aria-label="Fechar">×</button>${html}`;
+  sheet.innerHTML = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>${html}`;
   sheet.scrollTop = 0;
   document.body.classList.add("sheet-open");
   $(".close", sheet).onclick = closeSheet;
@@ -227,7 +228,7 @@ async function openDetails(m) {
     const d = await tmdb.details(m.type, m.id, { signal: ctl.signal });
     if (ctl !== detailsCtl || !document.body.classList.contains("sheet-open")) return;
     const top = sheet.scrollTop;
-    sheet.innerHTML = `<div class="grab"></div><button class="close" aria-label="Fechar">×</button>${detailsHTML(d, d)}`;
+    sheet.innerHTML = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>${detailsHTML(d, d)}`;
     $(".close", sheet).onclick = closeSheet;
     sheet.scrollTop = top;
     wireDetails(d);
@@ -365,7 +366,7 @@ function wireDetails(m) {
 function refreshSheet(m) {
   const top = sheet.scrollTop;
   const d = m.providers ? m : null;
-  sheet.innerHTML = `<div class="grab"></div><button class="close" aria-label="Fechar">×</button>${detailsHTML(m, d)}`;
+  sheet.innerHTML = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>${detailsHTML(m, d)}`;
   $(".close", sheet).onclick = closeSheet;
   sheet.scrollTop = top;
   wireDetails(m);
