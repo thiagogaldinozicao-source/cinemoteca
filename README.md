@@ -29,6 +29,7 @@ Funciona no navegador e dá pra instalar no celular como app (ícone na tela ini
 | `supabase/functions/tmdb/index.ts` | Função `tmdb`: faz a busca com a chave escondida (segredo `TMDB_KEY`) |
 | `cloud.js` | Login e sincronização no app |
 | `vendor/supabase.js` | Biblioteca do Supabase (cópia local, pra abrir sem internet) |
+| `.github/workflows/manter-acordado.yml` | Dá um "oi" no Supabase a cada 3 dias pro projeto grátis não pausar |
 
 No `config.js` vão só o endereço do projeto e a chave **pública** (publishable/anon).
 Nunca a chave secret/service_role nem a do TMDB. Com esses campos vazios o app volta

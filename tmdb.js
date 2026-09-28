@@ -61,6 +61,7 @@ async function get(path, params = {}, opts = {}) {
   if (res.status === 429) throw new TmdbError("rate", "Muitas buscas seguidas");
   if (!res.ok) throw new TmdbError("http", "Erro " + res.status);
   const data = await res.json();
+  if (cache.size > 300) cache.clear();
   cache.set(ck, data);
   return data;
 }
@@ -73,7 +74,7 @@ async function viaCloud(path, params, { signal } = {}) {
   if (cache.has(ck)) return cache.get(ck);
   if (!navigator.onLine) throw new TmdbError("network", "Sem conexão");
   const token = await cloud.accessToken();
-  if (!token) throw new TmdbError("login", "Precisa entrar");
+  if (!token) throw cloud.currentUser() ? new TmdbError("network", "Sem conexão") : new TmdbError("login", "Precisa entrar");
   let res;
   try {
     res = await fetch(url, { headers: { Authorization: "Bearer " + token, apikey: cloud.publicKey() }, signal });
@@ -92,6 +93,7 @@ async function viaCloud(path, params, { signal } = {}) {
     throw new TmdbError("http", "Erro " + res.status);
   }
   const data = await res.json();
+  if (cache.size > 300) cache.clear();
   cache.set(ck, data);
   return data;
 }

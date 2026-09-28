@@ -45,3 +45,10 @@ create policy "apaga da propria lista" on public.items
 -- Visitante sem login não acessa nada.
 revoke all on public.items from anon;
 grant select, insert, update, delete on public.items to authenticated;
+
+-- Sinal de vida: chamado a cada 3 dias pelo GitHub (.github/workflows/manter-acordado.yml)
+-- pra o projeto grátis não ser pausado por falta de uso.
+create or replace function public.ping() returns integer
+language sql stable security invoker set search_path = '' as $$ select 1 $$;
+revoke all on function public.ping() from public;
+grant execute on function public.ping() to anon, authenticated;

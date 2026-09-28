@@ -8,7 +8,9 @@ const URL_ = (cfg.SUPABASE_URL || "").trim().replace(/\/+$/, "");
 const KEY = (cfg.SUPABASE_KEY || "").trim();
 const LAST = "cinemoteca_conta"; // { id, email } da última conta usada aqui
 
-export const enabled = !!(URL_ && KEY && window.supabase);
+// Ligado pela configuração (e não pela biblioteca ter carregado): se a biblioteca
+// falhar, o app continua mostrando a lista da conta em vez de cair no modo antigo.
+export const enabled = !!(URL_ && KEY);
 
 let sb = null;
 let user = readLast();          // conta conhecida (vale mesmo sem internet)
@@ -34,6 +36,9 @@ export function syncStatus() { return { status, pending: store.pendingCount(), o
 export function start() {
   if (!enabled) return;
   if (user) store.useAccount(user.id);
+  // Com a nuvem ligada a chave do TMDB colada no aparelho não é mais usada.
+  try { localStorage.removeItem("cinemoteca_tmdb_key"); } catch (e) { /* ignora */ }
+  if (!window.supabase) return; // biblioteca não carregou: segue só com a cópia do aparelho
   sb = window.supabase.createClient(URL_, KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit",
       storageKey: "cinemoteca_sessao" },
@@ -94,7 +99,11 @@ async function firstSync() {
 }
 
 // ---------- login ----------
+function needClient() {
+  if (!sb) { const e = new Error("offline"); e.offline = true; throw e; }
+}
 export async function sendCode(email) {
+  needClient();
   const { error } = await sb.auth.signInWithOtp({
     email,
     options: { shouldCreateUser: true, emailRedirectTo: location.origin + location.pathname },
@@ -102,10 +111,12 @@ export async function sendCode(email) {
   if (error) throw error;
 }
 export async function verifyCode(email, code) {
+  needClient();
   const { error } = await sb.auth.verifyOtp({ email, token: code, type: "email" });
   if (error) throw error;
 }
 export async function signOut() {
+  if (!sb) return;
   await sync();
   const { error } = await sb.auth.signOut({ scope: "local" });
   if (error && user) { // sem internet: sai só deste aparelho

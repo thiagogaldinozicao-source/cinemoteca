@@ -146,7 +146,7 @@ function renderLogin() {
 }
 function loginError(err) {
   const m = String((err && err.message) || "").toLowerCase();
-  if (!navigator.onLine) return "Sem internet agora.";
+  if (!navigator.onLine || (err && err.offline)) return "Sem internet agora. Tenta de novo quando conectar.";
   if ((err && err.status === 429) || m.includes("rate") || m.includes("seconds")) return "Muitos e-mails em pouco tempo. Espera uns minutos e tenta de novo.";
   if (m.includes("signups not allowed")) return "Cadastro de contas novas está desligado.";
   if (m.includes("not authorized") || m.includes("not allowed")) return "Esse e-mail ainda não está liberado no app.";
