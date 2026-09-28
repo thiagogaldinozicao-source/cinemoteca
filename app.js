@@ -1,5 +1,5 @@
-import * as tmdb from "./tmdb.js?v=5";
-import * as store from "./store.js?v=5";
+import * as tmdb from "./tmdb.js?v=6";
+import * as store from "./store.js?v=6";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -70,7 +70,7 @@ let listSeg = "want";
 let listType = "all";
 function renderLista() {
   const items = store.all();
-  const want = items.filter(i => i.status === "want").sort(store.byOrder);
+  const want = items.filter(i => i.status === "want").sort(store.byQuality);
   const seen = items.filter(i => i.status === "seen").sort((a, b) => (b.seenAt || 0) - (a.seenAt || 0));
   const src = (listSeg === "want" ? want : seen).filter(i => listType === "all" || i.type === listType);
 
@@ -108,7 +108,7 @@ function renderLista() {
 }
 function rowHTML(m, k, n) {
   const seen = m.status === "seen";
-  const canMove = !seen && listType === "all";
+  const canMove = false; // a fila é pela qualidade, não pela ordem de adição
   return `
     <li class="row" data-key="${esc(m.key)}">
       <span class="pos">${seen ? "✓" : k + 1}</span>

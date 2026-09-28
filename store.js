@@ -78,6 +78,16 @@ export function move(key, dir) {
   want[idx].order = j; want[j].order = idx;
   persist(); emit();
 }
+// Nota "justa": puxa pra 6.5 quem tem pouco voto, pra lançamento com meia dúzia
+// de fãs não passar na frente de clássico com milhares de avaliações.
+export function quality(m) {
+  const v = typeof m.vote === "number" ? m.vote : 0, n = m.votes || 0;
+  return (v * n + 6.5 * 200) / (n + 200);
+}
+// Melhores primeiro; empate fica por quem entrou antes.
+export function byQuality(a, b) {
+  return quality(b) - quality(a) || (a.addedAt || 0) - (b.addedAt || 0);
+}
 export function byOrder(a, b) {
   const oa = a.order ?? -a.addedAt, ob = b.order ?? -b.addedAt;
   return oa - ob;
