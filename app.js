@@ -432,12 +432,65 @@ function renderAjustes() {
   };
   $("#imp").onchange = async e => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
-    try { const k = store.importJSON(await f.text()); toast(`${k} títulos restaurados`); renderAjustes(); }
+    let data;
+    try { data = JSON.parse(await f.text()); } catch (err) { toast("Esse arquivo não é da Cinemoteca."); return; }
+    if (data && Array.isArray(data.titles)) { importTitles(data.titles); return; }
+    try { const k = store.importJSON(JSON.stringify(data)); toast(`${k} títulos restaurados`); renderAjustes(); }
     catch (err) { toast("Esse arquivo não é um backup da Cinemoteca."); }
   };
   const w = $("#wipe"); if (w) w.onclick = () => {
     if (confirm("Apagar toda a sua lista deste aparelho? Isso não tem volta.")) { store.clearAll(); toast("Lista apagada"); renderAjustes(); }
   };
+}
+
+// ---------- IMPORTAR LISTA DE TÍTULOS ----------
+// Arquivo com { titles: [{ title, original?, q?, year?, type?, status?, memo? }] }.
+// O app acha cada um no TMDB (capa, trailer, onde assistir) e guarda na lista.
+let importing = false;
+async function importTitles(titles) {
+  if (importing) return;
+  if (!tmdb.getKey()) { toast("Salva a chave do TMDB primeiro."); return; }
+  importing = true;
+  go("ajustes");
+  const box = document.createElement("div");
+  box.className = "notice";
+  view.prepend(box);
+  const list = titles.filter(t => t && (t.title || t.q)).slice(0, 1000);
+  const missed = [], loose = [];
+  let done = 0, added = 0, dup = 0;
+  const show = () => { box.innerHTML = `⏳ Trazendo sua lista… <b>${done}</b> de <b>${list.length}</b><br><span class="muted">Deixa a tela aberta, leva uns segundos.</span>`; };
+  show();
+  let next = 0;
+  async function worker() {
+    while (next < list.length) {
+      const k = next++, t = list[k];
+      try {
+        const r = await tmdb.findBest({ q: t.q, original: t.original, title: t.title, year: +t.year || null, type: t.type === "tv" ? "tv" : t.type === "movie" ? "movie" : null });
+        if (!r) missed.push(t.title || t.q);
+        else {
+          if (r.loose) loose.push(`${t.title} → ${r.media.title}${r.media.year ? " (" + r.media.year + ")" : ""}`);
+          const status = t.status === "seen" ? "seen" : "want";
+          if (store.addImported(r.media, { status, memo: t.memo, order: k, note: +t.note || 0 })) added++; else dup++;
+        }
+      } catch (e) {
+        if (e.kind === "bad_key" || e.kind === "no_key") { missed.push(t.title); next = list.length; toast(errorText(e)); }
+        else missed.push(t.title || t.q);
+      }
+      done++; show();
+    }
+  }
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  store.flush();
+  importing = false;
+  renderAjustes();
+  const res = document.createElement("div");
+  res.className = "notice";
+  res.innerHTML = `✅ <b>${added}</b> títulos entraram na sua lista${dup ? ` (${dup} já estavam lá)` : ""}.
+    ${loose.length ? `<div class="lbl">Confere se acertei</div><p class="muted small">${loose.map(esc).join("<br>")}</p>` : ""}
+    ${missed.length ? `<div class="lbl">Não achei (busca manual)</div><p class="muted small">${missed.map(esc).join("<br>")}</p>` : ""}
+    <button class="btn gold wide" id="seeList">🎬 Ver minha lista</button>`;
+  view.prepend(res);
+  $("#seeList").onclick = () => go("lista");
 }
 
 // ---------- início ----------

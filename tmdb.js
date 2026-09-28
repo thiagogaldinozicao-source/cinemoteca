@@ -103,6 +103,23 @@ export async function search(query, opts) {
   return out;
 }
 
+// Acha o título certo a partir de um nome (usado na importação de lista).
+// Tenta cada nome dado, respeita o tipo (filme/série) e o ano (±1).
+// Devolve { media, loose } — loose = achou algo parecido mas sem bater o ano.
+export async function findBest({ q, original, title, year, type }, opts) {
+  const names = [...new Set([q, original, title].filter(Boolean))];
+  let fallback = null;
+  for (const name of names) {
+    const res = (await search(name, opts)).filter(r => !r.via && (!type || r.type === type));
+    if (!res.length) continue;
+    if (!year) return { media: res[0], loose: false };
+    const hit = res.find(r => r.year && Math.abs(+r.year - year) <= 1);
+    if (hit) return { media: hit, loose: false };
+    if (!fallback) fallback = res[0];
+  }
+  return fallback ? { media: fallback, loose: true } : null;
+}
+
 export async function trending(opts) {
   const data = await get("/trending/all/week", { language: LANG }, opts);
   return (data.results || [])

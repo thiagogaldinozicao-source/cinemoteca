@@ -98,4 +98,18 @@ export function importJSON(text) {
   persist(); emit();
   return n;
 }
+// Importa um título já achado no TMDB, sem sobrescrever o que já existe.
+// Salva no aparelho uma vez só no fim (flush), pra ser rápido com listas grandes.
+export function addImported(media, { status = "want", memo = "", order = null, note = 0 } = {}) {
+  if (state.items[media.key]) return false;
+  const now = Date.now();
+  state.items[media.key] = {
+    ...slim(media), status, addedAt: now, seenAt: status === "seen" ? now : null,
+    note: note || 0, memo: String(memo || "").slice(0, 300),
+    ...(order != null ? { order } : {}),
+  };
+  return true;
+}
+export function flush() { const ok = persist(); emit(); return ok; }
+
 export function clearAll() { state = { items: {} }; persist(); emit(); }
