@@ -36,7 +36,7 @@ window.imgFail = el => {
 function verdictHTML(m) {
   const v = tmdb.verdict(m.vote, m.votes);
   const nota = m.vote != null && m.votes >= 50 ? ` · ${m.vote.toFixed(1)}` : "";
-  return `<span class="verd ${v.cls}">${v.label}${nota}</span>`;
+  return `<span class="verd ${v.cls}">${v.emoji} ${v.label}${nota}</span>`;
 }
 function errorText(e) {
   if (!e) return "Deu um problema. Tenta de novo.";
@@ -79,7 +79,7 @@ function renderLista() {
       <div class="empty">
         <div class="empty-emoji">🍿</div>
         <h2>Sua lista tá vazia</h2>
-        <p>Viu uma indicação no Instagram? Busca pelo nome e salva aqui pra não esquecer.</p>
+        <p>Viu uma indicação no Instagram ou um amigo falou de um filme? Busca aqui, eu te digo se vale a pena e você anota pra não esquecer.</p>
         <button class="btn gold" id="goSearch">🔍 Buscar filme ou série</button>
       </div>`;
     $("#goSearch").onclick = () => go("buscar");
@@ -116,6 +116,7 @@ function rowHTML(m, k, n) {
       <div class="rinfo">
         <div class="rtitle">${esc(m.title)}</div>
         <div class="rmeta">${typeLabel(m.type)}${m.year ? " · " + esc(m.year) : ""}${m.note ? ` · <span class="mine">★ ${m.note}/10</span>` : ""}</div>
+        ${m.memo ? `<div class="rmemo">📝 ${esc(m.memo)}</div>` : ""}
         ${verdictHTML(m)}
       </div>
       ${canMove ? `<div class="mv">
@@ -133,7 +134,7 @@ function renderBuscar() {
   view.innerHTML = `
     <div class="searchbar">
       <span>🔍</span>
-      <input id="q" type="search" inputmode="search" autocomplete="off" placeholder="Nome do filme ou série…" value="${esc(searchQuery)}" aria-label="Buscar filme ou série">
+      <input id="q" type="search" inputmode="search" autocomplete="off" placeholder="Filme, série ou nome do ator…" value="${esc(searchQuery)}" aria-label="Buscar filme ou série">
     </div>
     <div id="results"></div>`;
   const q = $("#q");
@@ -161,7 +162,7 @@ async function runSearch() {
   try {
     const list = query ? await tmdb.search(query, { signal: ctl.signal }) : await tmdb.trending({ signal: ctl.signal });
     if (ctl !== searchCtl) return;
-    if (!list.length) { box.innerHTML = `<p class="muted center pad">Não achei nada com "${esc(query)}". Tenta outro nome, o nome em inglês ou só uma parte.</p>`; return; }
+    if (!list.length) { box.innerHTML = `<p class="muted center pad">Não achei nada com "${esc(query)}". Tenta o nome em inglês, só uma parte do nome ou o nome de um ator.</p>`; return; }
     box.innerHTML = `${query ? "" : `<h3 class="sec">🔥 Em alta essa semana</h3>`}
       <ul class="results">${list.map(resultHTML).join("")}</ul>`;
     box.querySelectorAll(".res").forEach(el => {
@@ -187,6 +188,7 @@ function resultHTML(m) {
       <div class="rinfo">
         <div class="rtitle">${esc(m.title)}</div>
         <div class="rmeta">${typeLabel(m.type)}${m.year ? " · " + esc(m.year) : ""}${m.original ? " · " + esc(m.original) : ""}</div>
+        ${m.via ? `<div class="via">com ${esc(m.via)}</div>` : ""}
         ${verdictHTML(m)}
       </div>
       <button class="quick ${saved ? "done" : ""}" aria-label="${saved ? "Já está na lista" : "Adicionar em Quero ver"}" ${saved ? "disabled" : ""}>${state}</button>
@@ -269,10 +271,14 @@ function detailsHTML(m, d) {
       </div>
     </div>
     <div class="dbody">
+      <p class="why">${esc(tmdb.verdict(m.vote, m.votes).why)}${m.vote != null && m.votes >= 50 ? ` <span class="muted">Nota ${m.vote.toFixed(1)} de ${m.votes.toLocaleString("pt-BR")} pessoas.</span>` : ""}</p>
       <div class="actions">${actions}</div>
+      ${saved ? `<div class="lbl">Sua anotação</div>
+        <textarea class="memo" id="memo" rows="2" maxlength="300" placeholder="Quem indicou, onde viu, com quem quer ver…">${esc(saved.memo || "")}</textarea>` : ""}
       ${stars ? `<div class="lbl">Sua nota${saved.note ? " — " + saved.note + "/10" : ""}</div><div class="stars">${stars}</div>` : ""}
       ${d && d.genres.length ? `<div class="tags">${d.genres.map(g => `<span class="tag">${esc(g)}</span>`).join("")}</div>` : ""}
-      ${m.overview ? `<div class="lbl">Sinopse</div><p class="syn">${esc(m.overview)}</p>` : (d ? `<p class="muted">Sem sinopse em português.</p>` : "")}
+      ${m.overview ? `<div class="lbl">Sinopse${m.overviewLang === "en" ? " <span class=\"lang\">(só tem em inglês)</span>" : ""}</div><p class="syn">${esc(m.overview)}</p>` : (d ? `<p class="muted">Ainda não tem sinopse cadastrada.</p>` : "")}
+      ${d && d.trailerKey ? trailerHTML(d) : ""}
       <div id="dslot">${d ? providersHTML(d) + creditsHTML(d) + recsHTML(d) : `<p class="muted">Carregando onde assistir…</p>`}</div>
     </div>`;
 }
@@ -287,8 +293,18 @@ function providersHTML(d) {
     <div class="lbl">Onde assistir no Brasil</div>
     ${any ? group("Assinatura", p.stream) + group("Alugar", p.rent) + group("Comprar", p.buy)
       : `<p class="muted">Ainda não está em nenhum streaming no Brasil${d.type === "movie" ? " (pode estar só no cinema)" : ""}.</p>`}
-    <p class="tiny">Dados de onde assistir: JustWatch</p>
-    ${d.trailer ? `<a class="btn ghost wide" href="${d.trailer}" target="_blank" rel="noopener">▶ Ver trailer</a>` : ""}`;
+    ${p.link ? `<a class="btn ghost wide" href="${esc(p.link)}" target="_blank" rel="noopener">Ver todas as opções e preços</a>` : ""}
+    <p class="tiny">Dados de onde assistir: JustWatch</p>`;
+}
+function trailerHTML(d) {
+  const k = encodeURIComponent(d.trailerKey);
+  return `
+    <div class="lbl">Trailer</div>
+    <button class="trailer" data-trailer="${k}" aria-label="Tocar trailer de ${esc(d.title)}">
+      <img src="https://i.ytimg.com/vi/${k}/hqdefault.jpg" alt="" loading="lazy" onerror="this.remove()">
+      <span class="play">▶</span>
+    </button>
+    <a class="tiny ytlink" href="${esc(d.trailer)}" target="_blank" rel="noopener">Abrir no YouTube</a>`;
 }
 function creditsHTML(d) {
   const parts = [];
@@ -307,7 +323,7 @@ function wireDetails(m) {
     const act = b.dataset.act;
     const saved = store.get(m.key);
     let ok = true;
-    if (act === "want") { ok = saved ? store.setStatus(m.key, "want") : store.add(m, "want"); if (ok) toast("Salvo em Quero ver"); }
+    if (act === "want") { ok = saved ? store.setStatus(m.key, "want") : store.add(m, "want"); if (ok) toast("Salvo em Quero ver. Quer anotar quem indicou?"); }
     if (act === "seen") { ok = saved ? store.setStatus(m.key, "seen") : store.add(m, "seen"); if (ok) toast("Marcado como visto. Dá uma nota!"); }
     if (act === "remove") {
       if (!confirm(`Tirar ${m.title} da sua lista?`)) return;
@@ -323,6 +339,23 @@ function wireDetails(m) {
     store.setNote(m.key, saved && saved.note === k ? 0 : k);
     refreshSheet(m);
   });
+  const memo = sheet.querySelector("#memo");
+  if (memo) {
+    let t;
+    const save = () => { clearTimeout(t); if (store.get(m.key)) store.setMemo(m.key, memo.value.trim()); };
+    memo.addEventListener("input", () => { clearTimeout(t); t = setTimeout(save, 600); });
+    memo.addEventListener("blur", save);
+  }
+  const tr = sheet.querySelector("[data-trailer]");
+  if (tr) tr.onclick = () => {
+    const f = document.createElement("iframe");
+    f.src = `https://www.youtube-nocookie.com/embed/${tr.dataset.trailer}?autoplay=1&playsinline=1&rel=0`;
+    f.title = "Trailer";
+    f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    f.allowFullscreen = true;
+    f.className = "trailer-frame";
+    tr.replaceWith(f);
+  };
   const d = m.recs ? m : null;
   sheet.querySelectorAll("[data-rec]").forEach(b => b.onclick = () => {
     const r = d && d.recs.find(x => x.key === b.dataset.rec);

@@ -43,6 +43,7 @@ export function add(media, status = "want") {
     addedAt: cur ? cur.addedAt : now,
     seenAt: status === "seen" ? (cur && cur.seenAt) || now : null,
     note: cur ? cur.note || 0 : 0,
+    memo: cur ? cur.memo || "" : "",
   };
   const ok = persist(); emit(); return ok;
 }
@@ -55,6 +56,12 @@ export function setStatus(key, status) {
 export function setNote(key, note) {
   const it = state.items[key]; if (!it) return false;
   it.note = note;
+  const ok = persist(); emit(); return ok;
+}
+export function setMemo(key, memo) {
+  const it = state.items[key]; if (!it) return false;
+  if ((it.memo || "") === memo) return true;
+  it.memo = memo.slice(0, 300);
   const ok = persist(); emit(); return ok;
 }
 export function remove(key) {

@@ -12,8 +12,9 @@ Funciona no navegador e dá pra instalar no celular como app (ícone na tela ini
 - 🔥 Quando a busca está vazia, mostra o que está em alta na semana
 - 🖼️ Capa, sinopse, gêneros, elenco, direção, trailer e títulos parecidos
 - 📺 Onde assistir no Brasil: assinatura, aluguel e compra
-- ✅ Veredito rápido (vale muito / vale / mais ou menos / fraco) pela nota do público
+- ✅ Veredito rápido (Vale muito 🔥 / Vale a pena ✅ / Sessão da tarde 🍿 / Não vale 👎) pela nota do público
 - 📋 Lista **Quero ver** com fila que dá pra reordenar, e **Já vi** com sua nota de 1 a 10
+- 📝 Anotação em cada título: quem indicou, onde viu, com quem quer ver
 - 🎲 Sorteio de um título da sua fila
 - 💾 Backup e restauração da lista (arquivo)
 - 📱 Instalável e abre sem internet (a busca precisa de internet)

@@ -82,11 +82,25 @@ export function normalize(r, type) {
   };
 }
 
+// Busca no mundo todo (filmes e séries de qualquer país, pelo título em
+// português ou no original). Se o nome for de um ator ou diretor, traz
+// também os trabalhos conhecidos dele.
 export async function search(query, opts) {
-  const data = await get("/search/multi", { query, language: LANG, region: REGION, include_adult: "false" }, opts);
-  return (data.results || [])
-    .filter(r => r.media_type === "movie" || r.media_type === "tv")
-    .map(r => normalize(r));
+  const data = await get("/search/multi", { query, language: LANG, include_adult: "false" }, opts);
+  const out = [], seen = new Set();
+  const push = (r, via) => {
+    if (r.media_type !== "movie" && r.media_type !== "tv") return;
+    const m = normalize(r);
+    if (seen.has(m.key)) return;
+    seen.add(m.key);
+    if (via) m.via = via;
+    out.push(m);
+  };
+  const results = data.results || [];
+  results.forEach(r => push(r));
+  results.filter(r => r.media_type === "person").slice(0, 2)
+    .forEach(p => (p.known_for || []).forEach(k => push(k, p.name)));
+  return out;
 }
 
 export async function trending(opts) {
@@ -103,6 +117,12 @@ export async function details(type, id, opts) {
     include_video_language: "pt,en,null",
   }, opts);
   const base = normalize(d, type);
+  if (!base.overview) {
+    try {
+      const en = await get(`/${type}/${id}`, { language: "en-US" }, opts);
+      if (en.overview) { base.overview = en.overview; base.overviewLang = "en"; }
+    } catch (e) { if (e.name === "AbortError") throw e; }
+  }
   const prov = (d["watch/providers"] && d["watch/providers"].results && d["watch/providers"].results[REGION]) || {};
   const pick = arr => (arr || []).map(p => ({ id: p.provider_id, name: p.provider_name, logo: p.logo_path }));
   const vids = (d.videos && d.videos.results) || [];
@@ -123,17 +143,18 @@ export async function details(type, id, opts) {
     tagline: d.tagline || "",
     providers: { stream: pick(prov.flatrate), rent: pick(prov.rent), buy: pick(prov.buy), link: prov.link || "" },
     trailer: trailer ? "https://www.youtube.com/watch?v=" + trailer.key : "",
+    trailerKey: trailer ? trailer.key : "",
     cast,
     director,
     recs: ((d.recommendations && d.recommendations.results) || []).slice(0, 12).map(r => normalize(r, r.media_type || type)),
   };
 }
 
-// Veredito honesto a partir da nota e do número de votos do TMDB.
+// Veredito honesto a partir da nota e do número de votos do público no TMDB.
 export function verdict(vote, votes) {
-  if (vote == null || votes < 50) return { label: "sem nota ainda", cls: "none" };
-  if (vote >= 7.8) return { label: "vale muito", cls: "vm" };
-  if (vote >= 7.0) return { label: "vale", cls: "v" };
-  if (vote >= 6.0) return { label: "mais ou menos", cls: "mm" };
-  return { label: "fraco", cls: "f" };
+  if (vote == null || votes < 50) return { label: "Sem nota ainda", cls: "none", emoji: "❔", why: "Pouca gente avaliou ainda. Vale conferir o trailer." };
+  if (vote >= 7.8) return { label: "Vale muito", cls: "vm", emoji: "🔥", why: "Aclamado pelo público. Prioridade na fila." };
+  if (vote >= 7.0) return { label: "Vale a pena", cls: "v", emoji: "✅", why: "Bem avaliado. Boa escolha pra hoje." };
+  if (vote >= 6.0) return { label: "Sessão da tarde", cls: "mm", emoji: "🍿", why: "Diverte sem compromisso. Bom pra desligar a cabeça." };
+  return { label: "Não vale", cls: "f", emoji: "👎", why: "Mal avaliado pelo público. Só se for muita curiosidade." };
 }
