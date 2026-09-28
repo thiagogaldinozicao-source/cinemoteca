@@ -20,6 +20,7 @@ Funciona no navegador e dá pra instalar no celular como app (ícone na tela ini
 - 📱 Instalável e abre sem internet (a busca precisa de internet)
 - 👤 Conta por e-mail (código no e-mail, sem senha): a lista fica na nuvem, igual em todo aparelho, e só o dono vê
 - 🔐 Chave do TMDB escondida no servidor: ninguém precisa configurar nada
+- 🍿 Na primeira entrada, a pessoa escolhe os gêneros que curte (estilo Spotify) e a busca mostra "Pra você" com indicações
 
 ## Nuvem (Supabase)
 
@@ -28,6 +29,7 @@ Funciona no navegador e dá pra instalar no celular como app (ícone na tela ini
 | `supabase/schema.sql` | Tabela das listas + regras "cada um só vê a sua". Rodar no SQL Editor |
 | `supabase/functions/tmdb/index.ts` | Função `tmdb`: faz a busca com a chave escondida (segredo `TMDB_KEY`) |
 | `cloud.js` | Login e sincronização no app |
+| `gostos.js` | Gêneros que a pessoa curte e as indicações "Pra você" |
 | `vendor/supabase.js` | Biblioteca do Supabase (cópia local, pra abrir sem internet) |
 | `.github/workflows/manter-acordado.yml` | Dá um "oi" no Supabase a cada 3 dias pro projeto grátis não pausar |
 

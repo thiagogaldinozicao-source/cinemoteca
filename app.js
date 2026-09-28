@@ -1,7 +1,8 @@
-import * as tmdb from "./tmdb.js?v=12";
-import * as store from "./store.js?v=12";
-import * as now from "./now.js?v=12";
-import * as cloud from "./cloud.js?v=12";
+import * as tmdb from "./tmdb.js?v=13";
+import * as store from "./store.js?v=13";
+import * as now from "./now.js?v=13";
+import * as cloud from "./cloud.js?v=13";
+import * as gostos from "./gostos.js?v=13";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -67,24 +68,92 @@ function needLogin() { return cloud.enabled && !cloud.currentUser(); }
 function render() {
   document.body.classList.toggle("auth", needLogin());
   if (needLogin()) { renderLogin(); return; }
+  if (gostos.precisaPerguntar() || editandoGostos) { document.body.classList.add("auth"); renderGostos(); return; }
   view.dataset.tab = tab;
   if (tab === "lista") renderLista();
   else if (tab === "buscar") renderBuscar();
   else renderAjustes();
 }
-store.onChange(() => { if (!needLogin() && tab === "lista") renderLista(); });
+let editandoGostos = false;
+let escolha = null; // { generos:Set, tipo, mexeu }
+function naPergunta() { return !needLogin() && (gostos.precisaPerguntar() || editandoGostos); }
+store.onChange(() => {
+  if (naPergunta()) {
+    // A lista chegou depois de abrir o questionário: refaz o palpite se a pessoa ainda não mexeu.
+    if (escolha && !escolha.mexeu && !editandoGostos) { escolha = null; renderGostos(); }
+    return;
+  }
+  if (!needLogin() && tab === "lista") renderLista();
+});
 
 // Entrou/saiu da conta: redesenha tudo. Só mudou o status da nuvem: atualiza Ajustes.
 let wasLogged = !!cloud.currentUser();
 cloud.onChange(() => {
   const logged = !!cloud.currentUser();
-  if (logged !== wasLogged) { wasLogged = logged; closeSheet(); tab = "lista"; go("lista"); return; }
+  if (logged !== wasLogged) {
+    wasLogged = logged; closeSheet(); tab = "lista"; gostos.reset(); go("lista");
+    if (logged) gostos.carregar();
+    return;
+  }
   if (!needLogin() && tab === "ajustes") { const el = $("#syncLine"); if (el) el.innerHTML = syncText(); }
 });
 window.addEventListener("cinemoteca:migrou", e => {
   const { total, pending } = e.detail || {};
   toast(pending ? `Sua lista (${total}) vai subir pra nuvem quando tiver internet` : `✅ Sua lista (${total}) subiu pra nuvem`);
 });
+
+// ---------- GOSTOS (questionário estilo Spotify) ----------
+gostos.onChange(() => { if (naPergunta() && !$(".gostos")) render(); });
+function renderGostos() {
+  const atual = gostos.get();
+  if (!escolha) {
+    const base = atual && atual.generos && atual.generos.length ? atual.generos : gostos.palpite();
+    escolha = { generos: new Set(base), tipo: (atual && atual.tipo) || "ambos" };
+  }
+  const n = escolha.generos.size;
+  view.innerHTML = `
+    <div class="gostos">
+      <div class="empty-emoji">🍿</div>
+      <h2>Do que vc curte?</h2>
+      <p class="muted">Toca nos gêneros que vc gosta. Na 🔍 busca eu te indico filmes e séries disso.${!editandoGostos && store.all().length && n ? "<br>Já marquei alguns pelo que tem na sua lista." : ""}</p>
+      <div class="gchips">
+        ${gostos.GENEROS.map(g => `<button class="gchip ${escolha.generos.has(g.id) ? "on" : ""}" data-g="${g.id}"><span>${g.emoji}</span>${esc(g.label)}</button>`).join("")}
+      </div>
+      <div class="lbl center">Prefere…</div>
+      <div class="seg gtipo">
+        ${[["movie", "Filmes"], ["tv", "Séries"], ["ambos", "Os dois"]].map(([k, l]) => `<button class="${escolha.tipo === k ? "on" : ""}" data-t="${k}">${l}</button>`).join("")}
+      </div>
+      <div class="gfoot">
+        <button class="btn gold wide" id="gOk" ${n ? "" : "disabled"}>${n ? `Pronto (${n})` : "Escolhe pelo menos 1"}</button>
+        <button class="btn ghost wide" id="gSkip">${editandoGostos ? "Cancelar" : "Pular por agora"}</button>
+      </div>
+    </div>`;
+  view.querySelectorAll("[data-g]").forEach(b => b.onclick = () => {
+    const id = b.dataset.g;
+    escolha.generos.has(id) ? escolha.generos.delete(id) : escolha.generos.add(id);
+    escolha.mexeu = true;
+    const top = window.scrollY; renderGostos(); window.scrollTo(0, top);
+  });
+  view.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { escolha.tipo = b.dataset.t; escolha.mexeu = true; const top = window.scrollY; renderGostos(); window.scrollTo(0, top); });
+  $("#gOk").onclick = () => {
+    const eraEdicao = editandoGostos;
+    editandoGostos = false;
+    gostos.salvar([...escolha.generos], escolha.tipo);
+    escolha = null;
+    document.body.classList.remove("auth");
+    searchQuery = "";
+    toast(eraEdicao ? "Gostos atualizados!" : "Prontinho! Olha as indicações pra você 🍿");
+    go("buscar");
+  };
+  $("#gSkip").onclick = () => {
+    const eraEdicao = editandoGostos;
+    editandoGostos = false; escolha = null;
+    if (!eraEdicao) gostos.salvar([], "ambos", true);
+    document.body.classList.remove("auth");
+    go(eraEdicao ? "ajustes" : "lista");
+  };
+}
+function editarGostos() { editandoGostos = true; escolha = null; closeSheet(); render(); window.scrollTo(0, 0); }
 
 // ---------- ENTRAR (login por código no e-mail) ----------
 let loginEmail = "";
@@ -220,6 +289,7 @@ function rowHTML(m, k, n) {
 
 // ---------- BUSCAR ----------
 let searchQuery = "";
+let praFiltro = null; // um gênero só no "Pra você" (null = todos)
 let searchCtl = null;
 let searchTimer = null;
 function renderBuscar() {
@@ -250,15 +320,37 @@ async function runSearch() {
     $("#goCfg").onclick = () => go("ajustes");
     return;
   }
-  box.innerHTML = `<p class="muted center pad">${query ? "Procurando…" : "Carregando os mais falados da semana…"}</p>`;
+  box.innerHTML = `<p class="muted center pad">${query ? "Procurando…" : "Separando umas indicações…"}</p>`;
   try {
-    const list = query ? await tmdb.search(query, { signal: ctl.signal }) : await tmdb.trending({ signal: ctl.signal });
+    let list, pra = [];
+    if (query) list = await tmdb.search(query, { signal: ctl.signal });
+    else {
+      const g = gostos.get();
+      const temGostos = g && g.generos && g.generos.length;
+      [pra, list] = await Promise.all([
+        temGostos ? gostos.praVoce(praFiltro, { signal: ctl.signal }).catch(e => { if (e.name === "AbortError") throw e; return []; }) : [],
+        tmdb.trending({ signal: ctl.signal }),
+      ]);
+    }
     if (ctl !== searchCtl) return;
-    if (!list.length) { box.innerHTML = `<p class="muted center pad">Não achei nada com "${esc(query)}". Tenta o nome em inglês, só uma parte do nome ou o nome de um ator.</p>`; return; }
-    box.innerHTML = `${query ? "" : `<h3 class="sec">🔥 Em alta essa semana</h3>`}
+    if (query && !list.length) { box.innerHTML = `<p class="muted center pad">Não achei nada com "${esc(query)}". Tenta o nome em inglês, só uma parte do nome ou o nome de um ator.</p>`; return; }
+    const g = gostos.get();
+    const praHTML = !query && g && g.generos && g.generos.length ? `
+      <h3 class="sec">🍿 Pra você</h3>
+      <div class="chips pchips">
+        <button class="chip ${!praFiltro ? "on" : ""}" data-pf="">Tudo que curto</button>
+        ${g.generos.map(id => `<button class="chip ${praFiltro === id ? "on" : ""}" data-pf="${id}">${esc(gostos.label(id))}</button>`).join("")}
+      </div>
+      ${pra.length ? `<ul class="results">${pra.map(resultHTML).join("")}</ul>` : `<p class="muted pad">Nada novo nesse gênero agora. Tenta outro 😉</p>`}` : "";
+    const convite = !query && !(g && g.generos && g.generos.length) && cloud.enabled
+      ? `<button class="nowbar" id="setG"><span>🍿 <b>Me conta do que vc curte</b> e eu te indico filmes</span><span class="nowslot">›</span></button>` : "";
+    box.innerHTML = `${convite}${praHTML}${query ? "" : `<h3 class="sec">🔥 Em alta essa semana</h3>`}
       <ul class="results">${list.map(resultHTML).join("")}</ul>`;
+    const sg = $("#setG"); if (sg) sg.onclick = editarGostos;
+    box.querySelectorAll("[data-pf]").forEach(b => b.onclick = () => { praFiltro = b.dataset.pf || null; runSearch(); });
+    const all = pra.concat(list);
     box.querySelectorAll(".res").forEach(el => {
-      const m = list.find(x => x.key === el.dataset.key);
+      const m = all.find(x => x.key === el.dataset.key);
       el.onclick = e => {
         if (e.target.closest(".quick")) { e.stopPropagation(); quickAdd(m, el); return; }
         openDetails(m);
@@ -550,6 +642,15 @@ function renderAjustes() {
       </div>
     </div>` : ""}
 
+    <div class="card">
+      <div class="lbl">Seus gostos</div>
+      ${(() => { const g = gostos.get(); return g && g.generos && g.generos.length
+        ? `<div class="tags">${g.generos.map(id => `<span class="tag">${esc(gostos.label(id))}</span>`).join("")}</div>
+           <p class="muted small">${g.tipo === "movie" ? "Só filmes" : g.tipo === "tv" ? "Só séries" : "Filmes e séries"}</p>`
+        : `<p class="muted small">Ainda não escolheu. Com os gostos, a busca te indica filmes e séries do seu jeito.</p>`; })()}
+      <button class="btn wide" id="editG">🍿 ${gostos.get() && gostos.get().generos && gostos.get().generos.length ? "Mudar meus gostos" : "Escolher meus gostos"}</button>
+    </div>
+
     ${cloud.enabled ? "" : `<div class="card">
       <div class="lbl">Chave do TMDB</div>
       <p class="muted small">É o que faz a busca funcionar. Ela fica salva só neste aparelho.</p>
@@ -579,6 +680,7 @@ function renderAjustes() {
 
     <p class="tiny center">Este produto usa a API do TMDB, mas não é endossado nem certificado pelo TMDB.<br>Dados de onde assistir fornecidos pela JustWatch.</p>
   `;
+  $("#editG").onclick = editarGostos;
   const sn = $("#syncNow"); if (sn) sn.onclick = () => { cloud.sync(); toast("Sincronizando…"); };
   const lo = $("#logout"); if (lo) lo.onclick = async () => {
     const pend = store.pendingCount();
@@ -687,6 +789,7 @@ async function importTitles(titles) {
 
 // ---------- início ----------
 cloud.start();
+gostos.carregar();
 if (!needLogin() && !store.all().length && tmdb.ready()) go("buscar"); else render();
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {

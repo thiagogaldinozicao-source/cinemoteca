@@ -12,8 +12,9 @@ const CORS = {
 };
 
 // Só estes caminhos do TMDB podem ser pedidos.
-const PATHS = /^\/(search\/multi|trending\/all\/week|(movie|tv)\/\d{1,9})$/;
-const PARAMS = new Set(["query", "language", "include_adult", "append_to_response", "include_video_language", "page", "region"]);
+const PATHS = /^\/(search\/multi|trending\/all\/week|discover\/(movie|tv)|(movie|tv)\/\d{1,9})$/;
+const PARAMS = new Set(["query", "language", "include_adult", "append_to_response", "include_video_language", "page", "region",
+  "with_genres", "without_genres", "sort_by", "vote_count.gte", "vote_average.gte"]);
 
 // Lembra por alguns minutos quem já foi conferido (menos idas ao login).
 const seen = new Map<string, number>();
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
   if (r.status === 429) return json({ error: "rate" }, 429);
   if (!r.ok) return json({ error: "http", status: r.status }, 502);
 
-  const cache = path.startsWith("/search") ? "private, max-age=600" : "private, max-age=3600";
+  const cache = path.startsWith("/search") || path.startsWith("/discover") ? "private, max-age=600" : "private, max-age=3600";
   return new Response(await r.text(), {
     headers: { ...CORS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": cache },
   });

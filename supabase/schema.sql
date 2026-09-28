@@ -52,3 +52,22 @@ create or replace function public.ping() returns integer
 language sql stable security invoker set search_path = '' as $$ select 1 $$;
 revoke all on function public.ping() from public;
 grant execute on function public.ping() to anon, authenticated;
+
+-- Gostos de cada pessoa (gêneros escolhidos na primeira entrada).
+create table if not exists public.gostos (
+  user_id    uuid primary key default auth.uid() references auth.users (id) on delete cascade,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table public.gostos enable row level security;
+drop policy if exists "ve os proprios gostos" on public.gostos;
+drop policy if exists "salva os proprios gostos" on public.gostos;
+drop policy if exists "altera os proprios gostos" on public.gostos;
+create policy "ve os proprios gostos" on public.gostos
+  for select to authenticated using ((select auth.uid()) = user_id);
+create policy "salva os proprios gostos" on public.gostos
+  for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "altera os proprios gostos" on public.gostos
+  for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+revoke all on public.gostos from anon;
+grant select, insert, update on public.gostos to authenticated;

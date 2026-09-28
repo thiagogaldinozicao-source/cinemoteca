@@ -1,7 +1,7 @@
 // Acesso à API do TMDB (https://developer.themoviedb.org).
 // Com a nuvem ligada, a busca passa pela função "tmdb" do Supabase, que guarda a
 // chave escondida no servidor. Sem nuvem, usa a chave colada em Ajustes.
-import * as cloud from "./cloud.js?v=12";
+import * as cloud from "./cloud.js?v=13";
 
 const API = "https://api.themoviedb.org/3";
 const IMG = "https://image.tmdb.org/t/p/";
@@ -168,6 +168,19 @@ export async function trending(opts) {
   return (data.results || [])
     .filter(r => r.media_type === "movie" || r.media_type === "tv")
     .map(r => normalize(r));
+}
+
+// Descobre títulos bem avaliados de alguns gêneros (usado no "Pra você").
+export async function discover(type, genreIds, { without = [], page = 1 } = {}, opts) {
+  const data = await get(`/discover/${type}`, {
+    language: LANG, region: REGION, include_adult: "false", page,
+    with_genres: genreIds.join("|"),
+    ...(without.length ? { without_genres: without.join(",") } : {}),
+    sort_by: "popularity.desc",
+    "vote_count.gte": type === "tv" ? 150 : 300,
+    "vote_average.gte": 6.8,
+  }, opts);
+  return (data.results || []).map(r => normalize(r, type));
 }
 
 export async function details(type, id, opts) {

@@ -1,7 +1,7 @@
 // Conta e nuvem (Supabase): login por código no e-mail e sincronização da lista.
 // A lista continua no aparelho (funciona sem internet) e vai/vem da nuvem
 // sempre que tem conexão.
-import * as store from "./store.js?v=12";
+import * as store from "./store.js?v=13";
 
 const cfg = window.CINEMOTECA_CONFIG || {};
 const URL_ = (cfg.SUPABASE_URL || "").trim().replace(/\/+$/, "");
@@ -129,6 +129,19 @@ export async function accessToken() {
   if (!sb) return null;
   const { data } = await sb.auth.getSession();
   return data && data.session ? data.session.access_token : null;
+}
+// Gostos (gêneros escolhidos). null = ainda não escolheu.
+export async function loadGostos() {
+  if (!sb || !user) throw new Error("offline");
+  const { data, error } = await sb.from("gostos").select("data").eq("user_id", user.id).maybeSingle();
+  if (error && error.code === "PGRST116") return null; // nenhuma linha
+  if (error) throw error;
+  return data ? data.data : null;
+}
+export async function saveGostos(d) {
+  if (!sb || !user) return;
+  const { error } = await sb.from("gostos").upsert({ user_id: user.id, data: d, updated_at: new Date().toISOString() });
+  if (error) throw error;
 }
 export function functionsUrl(name) { return `${URL_}/functions/v1/${name}`; }
 export function publicKey() { return KEY; }
