@@ -302,3 +302,14 @@ body.auth{ padding-bottom:var(--safe-b); }
 .notasheet{ padding-top:18px; }
 .notasheet h2{ font-family:'Bebas Neue',sans-serif; font-size:30px; letter-spacing:1px; font-weight:400; margin:2px 0 4px; }
 .notasheet .stars{ margin:12px 0 6px; }
+
+/* ---------- tutorial ---------- */
+.tuto{ text-align:center; padding-top:26px; }
+.tuto-emo{ font-size:56px; line-height:1; }
+.tuto h2{ font-family:'Bebas Neue',sans-serif; font-size:30px; letter-spacing:1px; font-weight:400; margin:12px 0 8px; }
+.tuto p{ color:#d6d6de; font-size:15px; line-height:1.55; min-height:70px; }
+.tuto p b{ color:var(--gold); }
+.tuto-dots{ display:flex; justify-content:center; gap:6px; margin:18px 0 6px; }
+.tuto-dots span{ width:7px; height:7px; border-radius:50%; background:#ffffff26; }
+.tuto-dots span.on{ background:var(--gold); width:20px; border-radius:4px; }
+body.sheet-open .toast{ bottom:auto; top:calc(14px + var(--safe-t)); }

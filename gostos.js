@@ -1,8 +1,8 @@
 // Gostos da pessoa (gêneros), escolhidos na primeira entrada, estilo Spotify.
 // Ficam na conta (Supabase) e numa cópia no aparelho.
-import * as cloud from "./cloud.js?v=16";
-import * as store from "./store.js?v=16";
-import * as tmdb from "./tmdb.js?v=16";
+import * as cloud from "./cloud.js?v=17";
+import * as store from "./store.js?v=17";
+import * as tmdb from "./tmdb.js?v=17";
 
 // Gêneros do TMDB: filmes e séries usam números diferentes.
 export const GENEROS = [
@@ -63,10 +63,20 @@ export async function carregar() {
 export function reset() { atual = undefined; }
 
 export async function salvar(generos, tipo, pulou = false) {
-  const d = { generos: generos.filter(g => BY_ID[g]), tipo: tipo || "ambos", pulou: !!pulou, at: Date.now() };
+  const d = { generos: generos.filter(g => BY_ID[g]), tipo: tipo || "ambos", pulou: !!pulou, at: Date.now(),
+    ...(atual && atual.tutorial ? { tutorial: true } : {}) };
   atual = d; writeLocal(d); emit();
   if (cloud.enabled && cloud.currentUser()) cloud.saveGostos(d).catch(() => {});
   return d;
+}
+
+// Tutorial: marca como visto (na conta e no aparelho) pra nunca repetir.
+export function tutorialVisto() { return !!(atual && atual.tutorial); }
+export function marcarTutorial() {
+  if (!atual) return;
+  atual = { ...atual, tutorial: true };
+  writeLocal(atual);
+  if (cloud.enabled && cloud.currentUser()) cloud.saveGostos(atual).catch(() => {});
 }
 
 // Sugere gêneros a partir do que já está na lista (pra quem já usa o app).

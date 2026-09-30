@@ -1,8 +1,8 @@
-import * as tmdb from "./tmdb.js?v=16";
-import * as store from "./store.js?v=16";
-import * as now from "./now.js?v=16";
-import * as cloud from "./cloud.js?v=16";
-import * as gostos from "./gostos.js?v=16";
+import * as tmdb from "./tmdb.js?v=17";
+import * as store from "./store.js?v=17";
+import * as now from "./now.js?v=17";
+import * as cloud from "./cloud.js?v=17";
+import * as gostos from "./gostos.js?v=17";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -177,7 +177,7 @@ window.addEventListener("cinemoteca:migrou", e => {
 });
 
 // ---------- GOSTOS (questionário estilo Spotify) ----------
-gostos.onChange(() => { if (naPergunta() && !$(".gostos")) render(); });
+gostos.onChange(() => { if (naPergunta() && !$(".gostos")) render(); else setTimeout(() => mostrarTutorial(), 400); });
 function renderGostos() {
   const atual = gostos.get();
   if (!escolha) {
@@ -218,6 +218,7 @@ function renderGostos() {
     searchQuery = "";
     toast(eraEdicao ? "Gostos atualizados!" : "Prontinho! Olha as indicações pra você 🍿");
     go("buscar");
+    if (!eraEdicao) setTimeout(mostrarTutorial, 600);
   };
   $("#gSkip").onclick = () => {
     const eraEdicao = editandoGostos;
@@ -225,6 +226,7 @@ function renderGostos() {
     if (!eraEdicao) gostos.salvar([], "ambos", true);
     document.body.classList.remove("auth");
     go(eraEdicao ? "ajustes" : "lista");
+    if (!eraEdicao) setTimeout(mostrarTutorial, 400);
   };
 }
 function editarGostos() { editandoGostos = true; escolha = null; closeSheet(); render(); window.scrollTo(0, 0); }
@@ -496,6 +498,7 @@ function openSheet(html) {
   $(".close", sheet).onclick = closeSheet;
 }
 function closeSheet() {
+  tutoAberto = false;
   if (detailsCtl) { detailsCtl.abort(); detailsCtl = null; }
   document.body.classList.remove("sheet-open");
 }
@@ -612,6 +615,46 @@ function recsHTML(d) {
     <div class="lbl">Se curtir, veja também</div>
     <div class="recs">${d.recs.map(r => `<button class="rec" data-rec="${esc(r.key)}">${posterHTML(r, "w185", "rposter")}<span>${esc(r.title)}</span></button>`).join("")}</div>`;
 }
+// ---------- TUTORIAL (primeira vez no aparelho) ----------
+const TUTO_KEY = "cinemoteca_tutorial_visto";
+const TUTO = [
+  ["🔍", "Busca qualquer filme ou série", "Toca na lupa e digita o nome. Eu te digo se vale a pena e onde assistir."],
+  ["👉", "Arrasta pro lado", "Na busca: pra direita vai pro <b>Quero ver</b>, pra esquerda marca <b>Já vi</b>.<br>Na sua lista: direita = <b>Já vi</b>, esquerda = <b>tirar</b>."],
+  ["🎲", "Não sabe o que ver?", "O <b>dado</b> lá em cima sorteia da sua lista.<br>O <b>O que ver agora?</b> sugere pelo dia e horário."],
+  ["📤", "Indica pros amigos", "Abre um filme e toca no botão de compartilhar pra mandar no WhatsApp."],
+];
+// Visto fica guardado no aparelho E na conta: não repete nem trocando de celular.
+function tutoVisto() { try { if (localStorage.getItem(TUTO_KEY)) return true; } catch (e) { return true; } return gostos.tutorialVisto(); }
+let tutoAberto = false;
+function mostrarTutorial(forcar) {
+  if (!forcar) {
+    if (tutoAberto || needLogin() || naPergunta() || tutoVisto()) return;
+    if (cloud.enabled && gostos.get() === undefined) return; // ainda não sei se já viu em outro aparelho
+    if (document.body.classList.contains("sheet-open")) return;
+    // marca na hora: mesmo fechando o app no meio, não aparece de novo
+    try { localStorage.setItem(TUTO_KEY, "1"); } catch (e) { /* ignora */ }
+    gostos.marcarTutorial();
+  }
+  tutoAberto = true;
+  let i = 0;
+  const passo = () => {
+    const [emo, tit, txt] = TUTO[i];
+    openSheet(`<div class="dbody tuto">
+      <div class="tuto-emo">${emo}</div>
+      <h2>${tit}</h2>
+      <p>${txt}</p>
+      <div class="tuto-dots">${TUTO.map((_, k) => `<span class="${k === i ? "on" : ""}"></span>`).join("")}</div>
+      <button class="btn gold wide" id="tNext">${i < TUTO.length - 1 ? "Próximo" : "Bora começar! 🍿"}</button>
+      ${i < TUTO.length - 1 ? `<button class="btn ghost wide" id="tSkip">Pular</button>` : ""}
+    </div>`);
+    const fim = () => { tutoAberto = false; closeSheet(); };
+    $("#tNext", sheet).onclick = () => { if (++i < TUTO.length) passo(); else fim(); };
+    const sk = $("#tSkip", sheet); if (sk) sk.onclick = fim;
+    $(".close", sheet).onclick = fim;
+  };
+  passo();
+}
+
 // ---------- INDICAR (compartilhar do celular) ----------
 function linkDe(m) { return location.origin + location.pathname + "?t=" + encodeURIComponent(m.key); }
 async function indicar(m) {
@@ -853,6 +896,11 @@ function renderAjustes() {
     </div>
 
     <div class="card">
+      <div class="lbl">Como usar</div>
+      <button class="btn wide" id="verTuto">👀 Ver o tutorial de novo</button>
+    </div>
+
+    <div class="card">
       <div class="lbl">Instalar como app</div>
       <p class="muted small">No iPhone: botão Compartilhar do Safari → "Adicionar à Tela de Início". No Android: menu ⋮ do Chrome → "Instalar app".</p>
     </div>
@@ -860,6 +908,7 @@ function renderAjustes() {
     <p class="tiny center">Este produto usa a API do TMDB, mas não é endossado nem certificado pelo TMDB.<br>Dados de onde assistir fornecidos pela JustWatch.</p>
   `;
   $("#editG").onclick = editarGostos;
+  $("#verTuto").onclick = () => mostrarTutorial(true);
   const sn = $("#syncNow"); if (sn) sn.onclick = () => { cloud.sync(); toast("Sincronizando…"); };
   const lo = $("#logout"); if (lo) lo.onclick = async () => {
     const pend = store.pendingCount();
@@ -971,6 +1020,7 @@ cloud.start();
 gostos.carregar();
 if (!needLogin() && !store.all().length && tmdb.ready()) go("buscar"); else render();
 abrirIndicado();
+setTimeout(() => { if (!document.body.classList.contains("sheet-open")) mostrarTutorial(); }, 1500);
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});
