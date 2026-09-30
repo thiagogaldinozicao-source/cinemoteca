@@ -1,8 +1,8 @@
 // Gostos da pessoa (gêneros), escolhidos na primeira entrada, estilo Spotify.
 // Ficam na conta (Supabase) e numa cópia no aparelho.
-import * as cloud from "./cloud.js?v=13";
-import * as store from "./store.js?v=13";
-import * as tmdb from "./tmdb.js?v=13";
+import * as cloud from "./cloud.js?v=14";
+import * as store from "./store.js?v=14";
+import * as tmdb from "./tmdb.js?v=14";
 
 // Gêneros do TMDB: filmes e séries usam números diferentes.
 export const GENEROS = [

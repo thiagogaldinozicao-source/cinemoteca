@@ -1,8 +1,8 @@
-import * as tmdb from "./tmdb.js?v=13";
-import * as store from "./store.js?v=13";
-import * as now from "./now.js?v=13";
-import * as cloud from "./cloud.js?v=13";
-import * as gostos from "./gostos.js?v=13";
+import * as tmdb from "./tmdb.js?v=14";
+import * as store from "./store.js?v=14";
+import * as now from "./now.js?v=14";
+import * as cloud from "./cloud.js?v=14";
+import * as gostos from "./gostos.js?v=14";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -92,7 +92,7 @@ cloud.onChange(() => {
   const logged = !!cloud.currentUser();
   if (logged !== wasLogged) {
     wasLogged = logged; closeSheet(); tab = "lista"; gostos.reset(); go("lista");
-    if (logged) gostos.carregar();
+    if (logged) { gostos.carregar(); setTimeout(abrirIndicado, 300); }
     return;
   }
   if (!needLogin() && tab === "ajustes") { const el = $("#syncLine"); if (el) el.innerHTML = syncText(); }
@@ -513,7 +513,43 @@ function recsHTML(d) {
     <div class="lbl">Se curtir, veja também</div>
     <div class="recs">${d.recs.map(r => `<button class="rec" data-rec="${esc(r.key)}">${posterHTML(r, "w185", "rposter")}<span>${esc(r.title)}</span></button>`).join("")}</div>`;
 }
+// ---------- INDICAR (compartilhar do celular) ----------
+function linkDe(m) { return location.origin + location.pathname + "?t=" + encodeURIComponent(m.key); }
+async function indicar(m) {
+  const v = tmdb.verdict(m.vote, m.votes);
+  const nota = m.vote != null && m.votes >= 50 ? ` · ${m.vote.toFixed(1)}` : "";
+  const txt = `🎬 Te indico: ${m.title}${m.year ? ` (${m.year})` : ""}\n${v.emoji} ${v.label}${nota}`;
+  const url = linkDe(m);
+  if (navigator.share) {
+    try { await navigator.share({ title: m.title, text: txt, url }); } catch (e) { /* cancelou */ }
+    return;
+  }
+  try { await navigator.clipboard.writeText(txt + "\n" + url); toast("Copiado! É só colar no WhatsApp"); }
+  catch (e) { prompt("Copia e manda:", txt + " " + url); }
+}
+// Abriu por um link de indicação (?t=movie:123): mostra o título.
+function abrirIndicado() {
+  let key = new URLSearchParams(location.search).get("t");
+  try {
+    if (key) sessionStorage.setItem("cinemoteca_indicado", key);
+    else key = sessionStorage.getItem("cinemoteca_indicado");
+  } catch (e) { /* ignora */ }
+  if (key && location.search) history.replaceState(null, "", location.pathname);
+  const mm = /^(movie|tv):(\d+)$/.exec(key || "");
+  if (!mm || needLogin() || !tmdb.ready()) return;
+  try { sessionStorage.removeItem("cinemoteca_indicado"); } catch (e) { /* ignora */ }
+  const saved = store.get(key);
+  openDetails(saved || { key, type: mm[1], id: +mm[2], title: "Carregando…", votes: 0, vote: null });
+}
+
 function wireDetails(m) {
+  const cb = $(".closebar", sheet);
+  if (cb && m.id && !cb.querySelector(".share")) {
+    const b = document.createElement("button");
+    b.className = "close share"; b.setAttribute("aria-label", "Indicar pra alguém"); b.textContent = "📤";
+    b.onclick = () => indicar(m);
+    cb.appendChild(b);
+  }
   sheet.querySelectorAll("[data-act]").forEach(b => b.onclick = () => {
     const act = b.dataset.act;
     const saved = store.get(m.key);
@@ -791,6 +827,7 @@ async function importTitles(titles) {
 cloud.start();
 gostos.carregar();
 if (!needLogin() && !store.all().length && tmdb.ready()) go("buscar"); else render();
+abrirIndicado();
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});
