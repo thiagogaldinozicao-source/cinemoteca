@@ -4,7 +4,7 @@ const CACHE = "cinemoteca-v18";
 const IMGS = "cinemoteca-capas";
 const MAX_IMGS = 600;
 const V = "?v=18";
-const SHELL = ["./", "index.html", "styles.css" + V, "app.js" + V, "tmdb.js" + V, "store.js" + V, "now.js" + V, "config.js" + V, "cloud.js" + V, "gostos.js" + V, "amigos.js" + V, "vendor/supabase.js" + V,
+const SHELL = ["./", "index.html", "styles.css" + V, "app.js" + V, "tmdb.js" + V, "store.js" + V, "now.js" + V, "config.js" + V, "cloud.js" + V, "gostos.js" + V, "amigos.js" + V, "vendor/supabase.js" + V, "vendor/qrcode.js" + V,
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {

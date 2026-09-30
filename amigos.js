@@ -8,6 +8,7 @@ let caixa = null;    // indicações que chegaram: [{ id, de, nome, key, data, m
 let erro = false;
 const listeners = new Set();
 const novasListeners = new Set();
+const entrouListeners = new Set();
 
 function uid() { const u = cloud.currentUser(); return u ? u.id : null; }
 function k(n) { return `cinemoteca_${n}_${uid()}`; }
@@ -19,6 +20,8 @@ export function onChange(fn) { listeners.add(fn); }
 // fn(lista) com indicações que chegaram e ainda não foram avisadas neste aparelho.
 export function onNovas(fn) { novasListeners.add(fn); }
 
+// fn(lista) com amigos que entraram por convite seu (aparece pra quem convidou).
+export function onEntrou(fn) { entrouListeners.add(fn); }
 export function getPerfil() { return perfil; }
 export function getAmigos() { return amigos; }
 export function getCaixa() { return caixa; }
@@ -40,27 +43,39 @@ export function carregar() {
   if (carregando) return carregando;
   carregando = (async () => {
     try {
-      const [p, a, c] = await Promise.all([cloud.rpc("meu_perfil"), cloud.rpc("meus_amigos"), cloud.rpc("minhas_indicacoes")]);
-      perfil = p && p[0] ? p[0] : null; amigos = a || []; caixa = c || [];
-      gravar("perfil", perfil); gravar("amigos", amigos); gravar("caixa", caixa);
+      const [p, r] = await Promise.all([cloud.rpc("meu_perfil"), cloud.rpc("resumo")]);
+      perfil = p && p[0] ? p[0] : null;
+      gravar("perfil", perfil);
+      aplicar(r);
       erro = false;
-      avisarNovas();
     } catch (e) { erro = true; }
     carregando = null;
     emit();
   })();
   return carregando;
 }
-// Só atualiza a caixa (roda de tempos em tempos).
+function aplicar(r) {
+  amigos = (r && r.amigos) || []; caixa = (r && r.caixa) || [];
+  gravar("amigos", amigos); gravar("caixa", caixa);
+  avisarNovas();
+  avisarEntrou();
+}
+// Atualiza amigos + caixa numa chamada só (roda de tempos em tempos).
 export async function atualizarCaixa() {
   if (!uid() || !navigator.onLine) return;
-  try {
-    caixa = (await cloud.rpc("minhas_indicacoes")) || [];
-    gravar("caixa", caixa);
-    avisarNovas();
-    emit();
-  } catch (e) { /* tenta depois */ }
+  try { aplicar(await cloud.rpc("resumo")); emit(); } catch (e) { /* tenta depois */ }
 }
+// Amigo novo que não fui eu que adicionei = aceitou meu convite.
+function avisarEntrou() {
+  const conhecidos = ler("conhecidos");
+  const ids = (amigos || []).map(a => a.user_id);
+  gravar("conhecidos", ids);
+  if (!conhecidos) return; // primeira vez neste aparelho: só anota
+  const set = new Set(conhecidos);
+  const novos = (amigos || []).filter(a => !set.has(a.user_id));
+  if (novos.length) entrouListeners.forEach(fn => fn(novos));
+}
+function conhecer(id) { const c = ler("conhecidos"); if (c && !c.includes(id)) gravar("conhecidos", [...c, id]); }
 function avisarNovas() {
   const vistos = new Set(ler("avisados") || []);
   const nov = (caixa || []).filter(i => i.estado === "nova" && !vistos.has(i.id));
@@ -91,8 +106,16 @@ export async function verConvite(cod) {
   const r = await cloud.rpc("ver_convite", { cod });
   return r && r[0] ? r[0] : null;
 }
+export async function trocarCodigo() {
+  const c = await cloud.rpc("trocar_codigo");
+  perfil = { ...perfil, codigo: c };
+  gravar("perfil", perfil);
+  emit();
+  return c;
+}
 export async function aceitarConvite(cod) {
   const r = await cloud.rpc("aceitar_convite", { cod });
+  if (r && r[0]) conhecer(r[0].user_id);
   await carregar();
   return r && r[0] ? r[0] : null;
 }

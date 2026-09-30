@@ -192,3 +192,40 @@ begin
     execute format('grant execute on function public.%s to authenticated', f);
   end loop;
 end $$;
+
+-- ---------- trocar código + resumo (consulta periódica numa chamada só) ----------
+create or replace function public.novo_codigo() returns text
+language plpgsql volatile set search_path = '' as $$
+declare abc text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; c text; i int;
+begin
+  loop
+    c := '';
+    for i in 1..6 loop c := c || substr(abc, 1 + floor(random() * length(abc))::int, 1); end loop;
+    exit when not exists (select 1 from public.perfis where codigo = c);
+  end loop;
+  return c;
+end $$;
+revoke all on function public.novo_codigo() from public, anon, authenticated;
+
+create or replace function public.trocar_codigo() returns text
+language plpgsql security definer set search_path = '' as $$
+declare c text;
+begin
+  if auth.uid() is null then raise exception 'sem login'; end if;
+  c := public.novo_codigo();
+  update public.perfis set codigo = c where user_id = auth.uid();
+  return c;
+end $$;
+
+create or replace function public.resumo() returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'amigos', coalesce((select jsonb_agg(to_jsonb(a)) from public.meus_amigos() a), '[]'::jsonb),
+    'caixa', coalesce((select jsonb_agg(to_jsonb(c)) from public.minhas_indicacoes() c), '[]'::jsonb)
+  )
+$$;
+
+revoke all on function public.trocar_codigo() from public, anon;
+grant execute on function public.trocar_codigo() to authenticated;
+revoke all on function public.resumo() from public, anon;
+grant execute on function public.resumo() to authenticated;

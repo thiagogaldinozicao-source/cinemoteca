@@ -809,8 +809,9 @@ function renderAmigos() {
     </div>
     <div class="row2">
       <button class="btn gold" id="convidar">📲 Chamar amigo</button>
-      <button class="btn" id="temCod">🔑 Tenho um código</button>
+      <button class="btn" id="verQr">📷 Meu QR code</button>
     </div>
+    <button class="btn ghost wide" id="temCod">🔑 Tenho o código de um amigo</button>
 
     ${caixa.length ? `<div class="lbl">Indicações pra você <b class="cnt">${caixa.length}</b></div>
       <ul class="inds">${caixa.map(indHTML).join("")}</ul>` : ""}
@@ -840,6 +841,7 @@ function renderAmigos() {
   };
   $("#convidar").onclick = convidar;
   $("#temCod").onclick = sheetCodigo;
+  $("#verQr").onclick = sheetQr;
   view.querySelectorAll(".amg").forEach(li => li.onclick = () => abrirAmigo(li.dataset.amigo));
   view.querySelectorAll(".ind").forEach(li => {
     const i = caixa.find(x => String(x.id) === li.dataset.ind);
@@ -895,6 +897,50 @@ async function convidar() {
   try { await navigator.clipboard.writeText(txt + "\n" + url); toast("Copiado! É só colar no WhatsApp"); }
   catch (e) { prompt("Copia e manda:", txt + " " + url); }
 }
+// QR code (a outra pessoa aponta a câmera e abre o convite).
+let qrLib = null;
+function carregaQr() {
+  if (window.qrcode) return Promise.resolve();
+  if (!qrLib) qrLib = new Promise((ok, falha) => {
+    const sc = document.createElement("script");
+    sc.src = "vendor/qrcode.js?v=18"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    document.head.appendChild(sc);
+  });
+  return qrLib;
+}
+async function sheetQr() {
+  const p = amigos.getPerfil(); if (!p) return;
+  openSheet(`<div class="dbody pad2 center">
+    <h2 class="h">Meu QR code</h2>
+    <p class="muted small">Seu amigo aponta a câmera do celular aqui e já cai no convite.</p>
+    <div class="qr" id="qrBox"><span class="muted">Carregando…</span></div>
+    <p class="muted small">Ou passa o código: <b class="cod">${esc(amigos.codigoFmt(p.codigo))}</b></p>
+    <button class="btn ghost wide" id="trocaCod">🔄 Trocar meu código</button>
+    <p class="tiny">Trocar faz os links e códigos antigos pararem de funcionar (bom se alguém repassou seu convite). Quem já é seu amigo continua.</p>
+  </div>`);
+  const tok = sheetToken;
+  const desenha = () => {
+    const box = $("#qrBox", sheet); if (!box || tok !== sheetToken) return;
+    const q = window.qrcode(0, "M");
+    q.addData(amigos.linkConvite()); q.make();
+    box.innerHTML = q.createSvgTag({ cellSize: 6, margin: 3, scalable: true });
+  };
+  try { await carregaQr(); desenha(); }
+  catch (e) { const box = $("#qrBox", sheet); if (box) box.innerHTML = `<span class="muted">Sem internet pra montar o QR. Usa o código.</span>`; }
+  $("#trocaCod", sheet).onclick = async () => {
+    if (!confirm("Trocar seu código? Os links e códigos que vc já mandou param de funcionar.")) return;
+    try {
+      const c = await amigos.trocarCodigo();
+      sheetQr();
+      toast(`Código novo: ${amigos.codigoFmt(c)}`);
+    } catch (e) { toast("Sem internet agora. Tenta de novo."); }
+  };
+}
+amigos.onEntrou(novos => {
+  const n = novos[0].nome;
+  toast(novos.length > 1 ? `🎉 ${novos.length} amigos novos na Cinemoteca!` : `🎉 ${n} aceitou seu convite!`, "Ver", () =>
+    novos.length > 1 ? go("amigos") : abrirAmigo(novos[0].user_id, n));
+});
 function sheetCodigo() {
   openSheet(`<div class="dbody pad2">
     <h2 class="h">Código do amigo</h2>
