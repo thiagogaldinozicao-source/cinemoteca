@@ -158,6 +158,13 @@ export function setMemo(key, memo) {
   touch(key);
   return changed();
 }
+// Desfazer: devolve o título exatamente como estava.
+export function restore(item) {
+  if (!item || !item.key) return false;
+  state.items[item.key] = { ...item };
+  touch(item.key);
+  return changed();
+}
 export function remove(key) {
   delete state.items[key];
   touch(key);

@@ -1,8 +1,8 @@
-import * as tmdb from "./tmdb.js?v=15";
-import * as store from "./store.js?v=15";
-import * as now from "./now.js?v=15";
-import * as cloud from "./cloud.js?v=15";
-import * as gostos from "./gostos.js?v=15";
+import * as tmdb from "./tmdb.js?v=16";
+import * as store from "./store.js?v=16";
+import * as now from "./now.js?v=16";
+import * as cloud from "./cloud.js?v=16";
+import * as gostos from "./gostos.js?v=16";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -14,12 +14,86 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const typeLabel = t => (t === "tv" ? "Série" : "Filme");
 
 let toastTimer;
-function toast(msg) {
+function toast(msg, acao, fn) {
   const t = $("#toast");
   t.textContent = msg;
+  t.classList.toggle("act", !!acao);
+  if (acao) {
+    const b = document.createElement("button");
+    b.textContent = acao;
+    b.onclick = () => { t.classList.remove("show"); clearTimeout(toastTimer); fn(); };
+    t.appendChild(b);
+  }
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  toastTimer = setTimeout(() => t.classList.remove("show"), acao ? 5000 : 2200);
+}
+
+// ---------- DESLIZAR NOS CARDS ----------
+// Só no dedo (no mouse o card continua só clicável).
+// opts: { right: {label, cls, fn}, left: {label, cls, fn} } — fn(card) é chamado ao soltar depois do limite.
+let swipedAt = 0;
+function swipeable(card, opts) {
+  let x0 = 0, y0 = 0, dx = 0, dir = null, id = null, w = 0;
+  const hint = document.createElement("span");
+  hint.className = "swhint";
+  card.appendChild(hint);
+  const reset = () => {
+    card.style.transition = "transform .2s"; card.style.transform = "";
+    card.classList.remove("swR", "swL", "swOk");
+    setTimeout(() => { card.style.transition = ""; }, 220);
+  };
+  card.addEventListener("pointerdown", e => {
+    if (e.pointerType === "mouse" || e.target.closest(".quick")) return;
+    id = e.pointerId; x0 = e.clientX; y0 = e.clientY; dx = 0; dir = null; w = card.offsetWidth;
+  });
+  card.addEventListener("pointermove", e => {
+    if (e.pointerId !== id) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!dir) {
+      if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+      dir = Math.abs(mx) > Math.abs(my) * 1.2 ? "h" : "v";
+      if (dir === "h") { try { card.setPointerCapture(id); } catch (err) { /* ignora */ } }
+    }
+    if (dir !== "h") return;
+    const side = mx > 0 ? opts.right : opts.left;
+    dx = side ? mx : mx / 5; // lado sem ação: puxa só um pouquinho
+    card.style.transform = `translateX(${dx}px)`;
+    card.classList.toggle("swR", mx > 0 && !!opts.right);
+    card.classList.toggle("swL", mx < 0 && !!opts.left);
+    if (side) { hint.textContent = side.label; hint.className = "swhint " + (mx > 0 ? "l " : "r ") + (side.cls || ""); }
+    card.classList.toggle("swOk", !!side && Math.abs(dx) > Math.min(110, w * 0.3));
+  });
+  const end = e => {
+    if (e.pointerId !== id) return;
+    id = null;
+    if (dir !== "h") return;
+    swipedAt = Date.now();
+    const side = dx > 0 ? opts.right : opts.left;
+    if (side && Math.abs(dx) > Math.min(110, w * 0.3)) {
+      card.style.transition = "transform .18s"; card.style.transform = `translateX(${dx > 0 ? w : -w}px)`;
+      setTimeout(() => { side.fn(card); reset(); }, 170);
+    } else reset();
+  };
+  card.addEventListener("pointerup", end);
+  card.addEventListener("pointercancel", end);
+  // o clique que vem logo depois de deslizar não abre os detalhes
+  card.addEventListener("click", e => { if (Date.now() - swipedAt < 350) { e.stopPropagation(); e.preventDefault(); } }, true);
+}
+
+// Nota rápida depois de marcar como visto.
+function pedirNota(m) {
+  let b = "";
+  for (let k = 1; k <= 10; k++) b += `<button class="star" data-n="${k}">${k}</button>`;
+  openSheet(`<div class="dbody notasheet">
+    <div class="lbl">Já vi ✓</div>
+    <h2>${esc(m.title)}</h2>
+    <p class="muted">Que nota vc dá?</p>
+    <div class="stars">${b}</div>
+    <button class="btn ghost wide" id="semNota">Agora não</button>
+  </div>`);
+  sheet.querySelectorAll("[data-n]").forEach(x => x.onclick = () => { store.setNote(m.key, +x.dataset.n); closeSheet(); toast(`★ ${x.dataset.n}/10 pra ${m.title}`); });
+  $("#semNota", sheet).onclick = closeSheet;
 }
 
 function posterHTML(m, size = "w342", cls = "poster") {
@@ -260,11 +334,26 @@ function renderLista() {
   const nb = $("#nowBtn"); if (nb) nb.onclick = openNow;
   view.querySelectorAll("[data-seg]").forEach(b => b.onclick = () => { listSeg = b.dataset.seg; renderLista(); });
   view.querySelectorAll("[data-type]").forEach(b => b.onclick = () => { listType = b.dataset.type; renderLista(); });
-  view.querySelectorAll(".row").forEach(r => r.onclick = e => {
-    const mv = e.target.closest("[data-move]");
-    if (mv) { e.stopPropagation(); store.move(r.dataset.key, +mv.dataset.move); return; }
-    const it = store.get(r.dataset.key);
-    if (it) openDetails(it);
+  view.querySelectorAll(".row").forEach(r => {
+    r.onclick = e => {
+      const mv = e.target.closest("[data-move]");
+      if (mv) { e.stopPropagation(); store.move(r.dataset.key, +mv.dataset.move); return; }
+      const it = store.get(r.dataset.key);
+      if (it) openDetails(it);
+    };
+    const key = r.dataset.key;
+    swipeable(r, {
+      right: listSeg === "want" ? { label: "✓ Já vi", cls: "ok", fn: () => {
+        const it = store.get(key); if (!it) return;
+        store.setStatus(key, "seen"); pedirNota(it);
+      } } : null,
+      left: { label: "Tirar 🗑", cls: "bad", fn: () => {
+        const it = store.get(key); if (!it) return;
+        const copia = JSON.parse(JSON.stringify(it));
+        store.remove(key);
+        toast(`${it.title} saiu da lista`, "Desfazer", () => { store.restore(copia); toast("Voltou pra lista"); });
+      } },
+    });
   });
 }
 function rowHTML(m, k, n) {
@@ -351,6 +440,16 @@ async function runSearch() {
     const all = pra.concat(list);
     box.querySelectorAll(".res").forEach(el => {
       const m = all.find(x => x.key === el.dataset.key);
+      const marcar = (status, msg) => {
+        if (store.get(m.key)) store.setStatus(m.key, status); else store.add(m, status);
+        const q = el.querySelector(".quick");
+        if (q) { q.textContent = status === "seen" ? "✓ Visto" : "✓ Na lista"; q.classList.add("done"); q.disabled = true; }
+        toast(msg);
+      };
+      if (m) swipeable(el, {
+        right: { label: "＋ Quero ver", cls: "gold", fn: () => marcar("want", `${m.title} entrou em Quero ver`) },
+        left: { label: "✓ Já vi", cls: "ok", fn: () => marcar("seen", `${m.title} marcado como visto`) },
+      });
       el.onclick = e => {
         if (e.target.closest(".quick")) { e.stopPropagation(); quickAdd(m, el); return; }
         openDetails(m);
@@ -604,7 +703,50 @@ function refreshSheet(m) {
 }
 
 // ---------- SORTEIO ----------
-$("#dice").onclick = () => openNow();
+$("#dice").onclick = () => sortear();
+
+// Sorteia da aba atual (Quero ver ou Já vi) e do filtro (filmes/séries), sem repetir.
+// Quando todos já saíram, avisa e recomeça do zero.
+const SORTE_KEY = "cinemoteca_sorteados";
+function sorteados() { try { return JSON.parse(localStorage.getItem(SORTE_KEY) || "{}"); } catch (e) { return {}; } }
+function salvaSorteados(o) { try { localStorage.setItem(SORTE_KEY, JSON.stringify(o)); } catch (e) { /* ignora */ } }
+function sortear() {
+  const seg = listSeg, tipo = listType;
+  const pool = store.all().filter(i => i.status === seg && (tipo === "all" || i.type === tipo));
+  const nomeTipo = tipo === "movie" ? "filmes" : tipo === "tv" ? "séries" : "títulos";
+  const nomeSeg = seg === "want" ? "Quero ver" : "Já vi";
+  if (!pool.length) { toast(`Não tem ${nomeTipo} em ${nomeSeg} pra sortear`); return; }
+  const ch = seg + ":" + tipo;
+  const reg = sorteados();
+  let feitos = (reg[ch] || []).filter(k => pool.some(i => i.key === k));
+  let resta = pool.filter(i => !feitos.includes(i.key));
+  let recomecou = false;
+  if (!resta.length) { feitos = []; resta = pool; recomecou = true; }
+  const m = resta[Math.floor(Math.random() * resta.length)];
+  feitos.push(m.key); reg[ch] = feitos; salvaSorteados(reg);
+  const faltam = pool.length - feitos.length;
+  openSheet(`
+    <div class="nowhead"><div class="lbl">🎲 Sorteio · ${esc(nomeSeg)} · ${esc(nomeTipo)}</div><h2>Deu esse!</h2></div>
+    <div class="dbody">
+      ${recomecou && pool.length > 1 ? `<div class="notice" style="margin:0 0 12px">Já tinham saído todos os ${pool.length}. Comecei o sorteio do zero 🔄</div>` : ""}
+      <div class="nowcard">
+        ${posterHTML(m, "w342", "dposter")}
+        <div class="htxt">
+          <h2>${esc(m.title)}</h2>
+          <div class="rmeta">${typeLabel(m.type)}${m.year ? " · " + esc(m.year) : ""}${m.note ? ` · <span class="mine">★ ${m.note}/10</span>` : ""}</div>
+          ${verdictHTML(m)}
+        </div>
+      </div>
+      ${m.memo ? `<p class="syn nowmemo">📝 ${esc(m.memo)}</p>` : ""}
+      <div class="actions" style="margin-top:14px">
+        <button class="btn gold" id="sOpen">Ver detalhes</button>
+        <button class="btn" id="sNext">🎲 Sortear outro</button>
+      </div>
+      <p class="tiny center">${pool.length === 1 ? `Só tem esse em ${esc(nomeSeg)}` : faltam ? `Faltam ${faltam} de ${pool.length} sem repetir` : `Esse era o último dos ${pool.length}. O próximo recomeça do zero`}</p>
+    </div>`);
+  $("#sOpen", sheet).onclick = () => openDetails(m);
+  $("#sNext", sheet).onclick = sortear;
+}
 
 // ---------- O QUE VER AGORA ----------
 async function openNow() {

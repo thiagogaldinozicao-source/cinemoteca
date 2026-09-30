@@ -1,7 +1,7 @@
 // Conta e nuvem (Supabase): login por código no e-mail e sincronização da lista.
 // A lista continua no aparelho (funciona sem internet) e vai/vem da nuvem
 // sempre que tem conexão.
-import * as store from "./store.js?v=15";
+import * as store from "./store.js?v=16";
 
 const cfg = window.CINEMOTECA_CONFIG || {};
 const URL_ = (cfg.SUPABASE_URL || "").trim().replace(/\/+$/, "");

@@ -280,3 +280,25 @@ body.auth{ padding-bottom:var(--safe-b); }
 .gfoot .btn.ghost{ margin-top:8px; border:none; color:var(--dim); }
 .close.share{ right:60px; display:grid; place-items:center; }
 .close.share svg{ margin-top:-2px; }
+
+/* ---------- deslizar nos cards ---------- */
+.row, .res{ position:relative; touch-action:pan-y; }
+.swhint{ position:absolute; inset:0; display:flex; align-items:center; padding:0 22px; border-radius:inherit; z-index:3;
+  font-weight:800; font-size:16px; letter-spacing:.3px; opacity:0; pointer-events:none; transition:opacity .12s; }
+.swhint.l{ justify-content:flex-start; }
+.swhint.r{ justify-content:flex-end; }
+.swR .swhint, .swL .swhint{ opacity:.6; }
+.swOk .swhint{ opacity:1; }
+.swhint.ok{ background:#0f2a1ae6; color:var(--green); }
+.swhint.bad{ background:#2e1416e6; color:var(--red); }
+.swhint.gold{ background:#2b2310e6; color:var(--gold); }
+.swOk.swR{ border-color:#4ade8066; }
+.swOk.swL{ border-color:#f8717166; }
+.res.swOk.swR{ border-color:#e5b56788; }
+.res.swOk.swL{ border-color:#4ade8066; }
+.queue, .results{ overflow-x:clip; }
+.toast.act{ pointer-events:auto; display:flex; align-items:center; gap:12px; }
+.toast button{ color:var(--gold); font-weight:800; padding:2px 4px; }
+.notasheet{ padding-top:18px; }
+.notasheet h2{ font-family:'Bebas Neue',sans-serif; font-size:30px; letter-spacing:1px; font-weight:400; margin:2px 0 4px; }
+.notasheet .stars{ margin:12px 0 6px; }
