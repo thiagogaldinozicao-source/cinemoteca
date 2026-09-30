@@ -278,4 +278,5 @@ body.auth{ padding-bottom:var(--safe-b); }
   background:linear-gradient(180deg, #0a0a0f00, var(--bg) 30%); }
 .gfoot .btn.wide{ margin-top:0; }
 .gfoot .btn.ghost{ margin-top:8px; border:none; color:var(--dim); }
-.close.share{ right:60px; font-size:17px; }
+.close.share{ right:60px; display:grid; place-items:center; }
+.close.share svg{ margin-top:-2px; }

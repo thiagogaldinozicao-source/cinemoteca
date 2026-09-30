@@ -1,7 +1,7 @@
 // Acesso à API do TMDB (https://developer.themoviedb.org).
 // Com a nuvem ligada, a busca passa pela função "tmdb" do Supabase, que guarda a
 // chave escondida no servidor. Sem nuvem, usa a chave colada em Ajustes.
-import * as cloud from "./cloud.js?v=14";
+import * as cloud from "./cloud.js?v=15";
 
 const API = "https://api.themoviedb.org/3";
 const IMG = "https://image.tmdb.org/t/p/";

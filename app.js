@@ -1,8 +1,8 @@
-import * as tmdb from "./tmdb.js?v=14";
-import * as store from "./store.js?v=14";
-import * as now from "./now.js?v=14";
-import * as cloud from "./cloud.js?v=14";
-import * as gostos from "./gostos.js?v=14";
+import * as tmdb from "./tmdb.js?v=15";
+import * as store from "./store.js?v=15";
+import * as now from "./now.js?v=15";
+import * as cloud from "./cloud.js?v=15";
+import * as gostos from "./gostos.js?v=15";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -546,7 +546,8 @@ function wireDetails(m) {
   const cb = $(".closebar", sheet);
   if (cb && m.id && !cb.querySelector(".share")) {
     const b = document.createElement("button");
-    b.className = "close share"; b.setAttribute("aria-label", "Indicar pra alguém"); b.textContent = "📤";
+    b.className = "close share"; b.setAttribute("aria-label", "Indicar pra alguém");
+    b.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>`;
     b.onclick = () => indicar(m);
     cb.appendChild(b);
   }
