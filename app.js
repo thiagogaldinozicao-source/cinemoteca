@@ -1,8 +1,9 @@
-import * as tmdb from "./tmdb.js?v=17";
-import * as store from "./store.js?v=17";
-import * as now from "./now.js?v=17";
-import * as cloud from "./cloud.js?v=17";
-import * as gostos from "./gostos.js?v=17";
+import * as tmdb from "./tmdb.js?v=18";
+import * as store from "./store.js?v=18";
+import * as now from "./now.js?v=18";
+import * as cloud from "./cloud.js?v=18";
+import * as gostos from "./gostos.js?v=18";
+import * as amigos from "./amigos.js?v=18";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -130,6 +131,7 @@ function errorText(e) {
 // ---------- navegação ----------
 let tab = "lista";
 function go(name) {
+  if (name !== "amigos" || tab === "amigos") amigoAberto = null;
   tab = name;
   document.querySelectorAll("nav.bottom button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
   render();
@@ -146,6 +148,7 @@ function render() {
   view.dataset.tab = tab;
   if (tab === "lista") renderLista();
   else if (tab === "buscar") renderBuscar();
+  else if (tab === "amigos") renderAmigos();
   else renderAjustes();
 }
 let editandoGostos = false;
@@ -158,6 +161,7 @@ store.onChange(() => {
     return;
   }
   if (!needLogin() && tab === "lista") renderLista();
+  else if (!needLogin() && tab === "amigos") renderAmigos();
 });
 
 // Entrou/saiu da conta: redesenha tudo. Só mudou o status da nuvem: atualiza Ajustes.
@@ -166,7 +170,8 @@ cloud.onChange(() => {
   const logged = !!cloud.currentUser();
   if (logged !== wasLogged) {
     wasLogged = logged; closeSheet(); tab = "lista"; gostos.reset(); go("lista");
-    if (logged) { gostos.carregar(); setTimeout(abrirIndicado, 300); }
+    amigos.reset();
+    if (logged) { gostos.carregar(); amigos.carregar(); setTimeout(() => { abrirIndicado(); abrirConvite(); }, 300); }
     return;
   }
   if (!needLogin() && tab === "ajustes") { const el = $("#syncLine"); if (el) el.innerHTML = syncText(); }
@@ -569,7 +574,9 @@ function detailsHTML(m, d) {
     </div>
     <div class="dbody">
       <p class="why">${esc(tmdb.verdict(m.vote, m.votes).why)}${m.vote != null && m.votes >= 50 ? ` <span class="muted">Nota ${m.vote.toFixed(1)} de ${m.votes.toLocaleString("pt-BR")} pessoas.</span>` : ""}</p>
+      ${indicadoPorHTML(m)}
       <div class="actions">${actions}</div>
+      ${cloud.enabled && cloud.currentUser() && m.id ? `<button class="btn ghost wide indbtn" data-ind>👥 Indicar pra um amigo</button>` : ""}
       ${saved ? `<div class="lbl">Sua anotação</div>
         <textarea class="memo" id="memo" rows="2" maxlength="300" placeholder="Quem indicou, onde viu, com quem quer ver…">${esc(saved.memo || "")}</textarea>` : ""}
       ${stars ? `<div class="lbl">Sua nota${saved.note ? " — " + saved.note + "/10" : ""}</div><div class="stars">${stars}</div>` : ""}
@@ -693,6 +700,8 @@ function wireDetails(m) {
     b.onclick = () => indicar(m);
     cb.appendChild(b);
   }
+  const ib = sheet.querySelector("[data-ind]");
+  if (ib) ib.onclick = () => sheetIndicar(m);
   sheet.querySelectorAll("[data-act]").forEach(b => b.onclick = () => {
     const act = b.dataset.act;
     const saved = store.get(m.key);
@@ -743,6 +752,345 @@ function refreshSheet(m) {
   $(".close", sheet).onclick = closeSheet;
   sheet.scrollTop = top;
   wireDetails(m);
+}
+
+// ---------- AMIGOS ----------
+let amigoAberto = null;   // { id, nome, dados, indiquei, seg, erro }
+const iniciais = n => (String(n || "?").trim().split(/\s+/).map(p => p[0]).join("").slice(0, 2) || "?").toUpperCase();
+const avatarHTML = (nome, cls = "") => `<span class="av ${cls}" style="--h:${[...String(nome)].reduce((a, c) => a + c.charCodeAt(0), 0) % 360}">${esc(iniciais(nome))}</span>`;
+function quando(ts) {
+  const d = (Date.now() - new Date(ts).getTime()) / 864e5;
+  if (d < 1) return "hoje"; if (d < 2) return "ontem"; if (d < 30) return `há ${Math.floor(d)} dias`;
+  return new Date(ts).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+// Numerozinho na aba Amigos.
+function badge() {
+  const b = $('nav.bottom [data-tab="amigos"]'); if (!b) return;
+  let s = b.querySelector(".badge");
+  const n = amigos.novas();
+  if (!n) { if (s) s.remove(); return; }
+  if (!s) { s = document.createElement("span"); s.className = "badge"; b.appendChild(s); }
+  s.textContent = n > 9 ? "9+" : n;
+}
+amigos.onChange(() => {
+  badge();
+  if (tab === "amigos" && !needLogin() && !naPergunta() && !amigoAberto) renderAmigos();
+});
+amigos.onNovas(lista => {
+  if (tab === "amigos" && !amigoAberto) return;
+  const i = lista[0];
+  const txt = lista.length > 1 ? `🎬 Chegaram ${lista.length} indicações de amigos` : `🎬 ${i.nome} te indicou ${i.data.title}`;
+  toast(txt, "Ver", () => go("amigos"));
+});
+
+function renderAmigos() {
+  if (amigoAberto) { renderAmigo(); return; }
+  const p = amigos.getPerfil(), lista = amigos.getAmigos(), caixa = amigos.pendentes();
+  if (!p) {
+    view.innerHTML = `<h2 class="h">Amigos</h2><p class="muted center pad">${amigos.falhou() ? "📴 Precisa de internet pra abrir seus amigos na primeira vez." : "Carregando…"}</p>`;
+    if (amigos.falhou()) { const r = document.createElement("button"); r.className = "btn wide"; r.textContent = "Tentar de novo"; r.onclick = () => amigos.carregar(); view.appendChild(r); }
+    return;
+  }
+  const nomeOk = amigos.nomeConfirmado();
+  view.innerHTML = `
+    <h2 class="h">Amigos</h2>
+    ${nomeOk ? "" : `<div class="card hi">
+      <div class="lbl">Como seus amigos vão te ver?</div>
+      <input class="txt" id="nomeIn" maxlength="30" value="${esc(p.nome)}" autocomplete="nickname" aria-label="Seu nome">
+      <button class="btn gold wide" id="nomeOk">Pronto</button>
+    </div>`}
+    <div class="me">
+      ${avatarHTML(p.nome, "big")}
+      <div class="meinfo">
+        <b>${esc(p.nome)}</b> ${nomeOk ? `<button class="lnk" id="nomeEd" aria-label="Mudar nome">✏️</button>` : ""}
+        <span class="muted small">Seu código: <b class="cod">${esc(amigos.codigoFmt(p.codigo))}</b></span>
+      </div>
+    </div>
+    <div class="row2">
+      <button class="btn gold" id="convidar">📲 Chamar amigo</button>
+      <button class="btn" id="temCod">🔑 Tenho um código</button>
+    </div>
+
+    ${caixa.length ? `<div class="lbl">Indicações pra você <b class="cnt">${caixa.length}</b></div>
+      <ul class="inds">${caixa.map(indHTML).join("")}</ul>` : ""}
+
+    <div class="lbl">Seus amigos ${lista && lista.length ? `<b class="cnt">${lista.length}</b>` : ""}</div>
+    ${lista && lista.length ? `<ul class="amigos">${lista.map(a => `
+      <li class="amg" data-amigo="${esc(a.user_id)}">
+        ${avatarHTML(a.nome)}
+        <div class="rinfo"><div class="rtitle">${esc(a.nome)}</div><div class="rmeta">Amigos desde ${esc(quando(a.desde))}</div></div>
+        <span class="chev">›</span>
+      </li>`).join("")}</ul>`
+      : `<div class="empty small">
+        <div class="empty-emoji">🍿👥</div>
+        <p>Chama a galera! Vocês veem a lista um do outro, descobrem o que os dois querem ver e mandam indicação direto pro app.</p>
+      </div>`}
+  `;
+  const ni = $("#nomeOk"); if (ni) ni.onclick = async () => {
+    const v = $("#nomeIn").value.trim();
+    if (!v) { toast("Coloca um nome"); return; }
+    try { if (v !== p.nome) await amigos.salvarNome(v); else amigos.confirmarNome(); toast("Beleza!"); }
+    catch (e) { toast("Sem internet agora. Tenta de novo."); }
+  };
+  const ne = $("#nomeEd"); if (ne) ne.onclick = async () => {
+    const v = (prompt("Seu nome pros amigos:", p.nome) || "").trim();
+    if (!v || v === p.nome) return;
+    try { await amigos.salvarNome(v); toast("Nome trocado"); } catch (e) { toast("Sem internet agora. Tenta de novo."); }
+  };
+  $("#convidar").onclick = convidar;
+  $("#temCod").onclick = sheetCodigo;
+  view.querySelectorAll(".amg").forEach(li => li.onclick = () => abrirAmigo(li.dataset.amigo));
+  view.querySelectorAll(".ind").forEach(li => {
+    const i = caixa.find(x => String(x.id) === li.dataset.ind);
+    li.onclick = e => {
+      const b = e.target.closest("[data-ia]");
+      if (!b) { openDetails(store.get(i.key) || i.data); return; }
+      e.stopPropagation();
+      if (b.dataset.ia === "ok") aceitarInd(i);
+      else { amigos.dispensar(i); toast("Indicação dispensada"); }
+    };
+  });
+  amigos.lerCaixa();
+}
+function indHTML(i) {
+  const m = i.data, meu = store.get(i.key);
+  return `
+    <li class="ind ${i.estado === "nova" ? "nova" : ""}" data-ind="${i.id}">
+      ${posterHTML(m, "w185", "thumb")}
+      <div class="rinfo">
+        <div class="rtitle">${esc(m.title)}</div>
+        <div class="rmeta">${typeLabel(m.type)}${m.year ? " · " + esc(m.year) : ""} · ${esc(quando(i.created_at))}</div>
+        <div class="quem">${avatarHTML(i.nome, "mini")} <b>${esc(i.nome)}</b>${i.msg ? `: “${esc(i.msg)}”` : " te indicou"}</div>
+        ${verdictHTML(m)}
+        <div class="iacts">
+          ${meu ? `<span class="muted small">${meu.status === "seen" ? "✓ Você já viu" : "✓ Já tá na sua lista"}</span>
+            <button class="btn ghost sm" data-ia="no">OK</button>`
+          : `<button class="btn gold sm" data-ia="ok">＋ Quero ver</button><button class="btn ghost sm" data-ia="no">Dispensar</button>`}
+        </div>
+      </div>
+    </li>`;
+}
+function aceitarInd(i) {
+  const ok = store.get(i.key) ? true : store.add(i.data, "want");
+  if (!ok) { toast("Não consegui salvar no aparelho."); return; }
+  const it = store.get(i.key);
+  if (it && !it.memo) store.setMemo(i.key, `Indicação de ${i.nome}${i.msg ? ": " + i.msg : ""}`.slice(0, 300));
+  amigos.aceitar(i);
+  toast(`${i.data.title} foi pro Quero ver 🍿`);
+}
+// Nos detalhes: quem te indicou este título.
+function indicadoPorHTML(m) {
+  const q = cloud.currentUser() ? amigos.quemIndicou(m.key) : [];
+  if (!q.length) return "";
+  return `<div class="indpor">${q.map(i => `<div>${avatarHTML(i.nome, "mini")} <b>${esc(i.nome)}</b> te indicou${i.msg ? `: “${esc(i.msg)}”` : ""}</div>`).join("")}</div>`;
+}
+
+// ---------- convite ----------
+async function convidar() {
+  const p = amigos.getPerfil(); if (!p) return;
+  const url = amigos.linkConvite();
+  const txt = `🍿 Bora ser amigo na Cinemoteca! A gente vê a lista um do outro e manda indicação de filme e série.\nMeu código: ${amigos.codigoFmt(p.codigo)}`;
+  if (navigator.share) { try { await navigator.share({ title: "Cinemoteca", text: txt, url }); } catch (e) { /* cancelou */ } return; }
+  try { await navigator.clipboard.writeText(txt + "\n" + url); toast("Copiado! É só colar no WhatsApp"); }
+  catch (e) { prompt("Copia e manda:", txt + " " + url); }
+}
+function sheetCodigo() {
+  openSheet(`<div class="dbody pad2">
+    <h2 class="h">Código do amigo</h2>
+    <p class="muted small">Pede pro seu amigo abrir a aba Amigos e te passar o código dele.</p>
+    <input class="txt cod" id="codIn" maxlength="8" placeholder="ABC-123" autocomplete="off" autocapitalize="characters" aria-label="Código do amigo">
+    <button class="btn gold wide" id="codOk">Adicionar</button>
+  </div>`);
+  const inp = $("#codIn", sheet);
+  setTimeout(() => inp.focus(), 250);
+  const ir = () => { const c = inp.value.replace(/[^a-z0-9]/gi, "").toUpperCase(); if (c.length < 6) { toast("O código tem 6 letras/números"); return; } confirmarConvite(c); };
+  $("#codOk", sheet).onclick = ir;
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") ir(); });
+}
+// Abriu pelo link de convite (?amigo=CODIGO).
+function abrirConvite() {
+  let cod = new URLSearchParams(location.search).get("amigo");
+  try {
+    if (cod) sessionStorage.setItem("cinemoteca_convite", cod);
+    else cod = sessionStorage.getItem("cinemoteca_convite");
+  } catch (e) { /* ignora */ }
+  if (cod && location.search) history.replaceState(null, "", location.pathname);
+  if (!cod || needLogin() || !cloud.currentUser()) return;
+  try { sessionStorage.removeItem("cinemoteca_convite"); } catch (e) { /* ignora */ }
+  confirmarConvite(cod);
+}
+async function confirmarConvite(cod) {
+  let dono;
+  try { dono = await amigos.verConvite(cod); }
+  catch (e) { toast(navigator.onLine ? "Não consegui abrir o convite agora." : "Sem internet pra abrir o convite."); return; }
+  if (!dono) { toast("Esse código não existe. Confere com seu amigo."); return; }
+  const eu = cloud.currentUser();
+  if (eu && dono.user_id === eu.id) { closeSheet(); toast("Esse é o seu próprio código 😅"); return; }
+  if (dono.ja_amigos) { closeSheet(); toast(`Você e ${dono.nome} já são amigos`); return; }
+  openSheet(`<div class="dbody pad2 center">
+    ${avatarHTML(dono.nome, "huge")}
+    <h2 class="h">${esc(dono.nome)}</h2>
+    <p class="muted">te chamou pra ser amigo na Cinemoteca. Vocês vão ver a lista um do outro e poder mandar indicação.</p>
+    <button class="btn gold wide" id="aceitaOk">🤝 Aceitar</button>
+    <button class="btn ghost wide" id="aceitaNo">Agora não</button>
+  </div>`);
+  $("#aceitaNo", sheet).onclick = closeSheet;
+  $("#aceitaOk", sheet).onclick = async () => {
+    try {
+      await amigos.aceitarConvite(cod);
+      closeSheet();
+      toast(`🎉 Agora você e ${dono.nome} são amigos!`);
+      abrirAmigo(dono.user_id, dono.nome);
+    } catch (e) { toast("Não deu certo agora. Tenta de novo."); }
+  };
+}
+
+// ---------- perfil do amigo ----------
+function afinidade(meus, dele, gm, gd) {
+  const a = new Set((gm && gm.generos) || []), b = new Set((gd && gd.generos) || []);
+  const uni = new Set([...a, ...b]).size;
+  const jg = uni ? [...a].filter(x => b.has(x)).length / uni : 0;
+  const keys = new Set(meus.map(i => i.key));
+  const comum = dele.filter(i => keys.has(i.key)).length;
+  const jt = Math.min(1, comum / 6);
+  if (!uni && !comum) return null;
+  return Math.round(35 + 65 * (0.6 * jg + 0.4 * jt));
+}
+async function abrirAmigo(id, nome) {
+  amigoAberto = { id, nome: nome || amigos.nomeDe(id), dados: null, indiquei: [], seg: null };
+  if (tab !== "amigos") { tab = "amigos"; document.querySelectorAll("nav.bottom button").forEach(b => b.classList.toggle("on", b.dataset.tab === "amigos")); }
+  renderAmigo(); window.scrollTo(0, 0);
+  const alvo = amigoAberto;
+  try {
+    const [d, ind] = await Promise.all([amigos.listaDo(id), amigos.indiqueiPra(id).catch(() => [])]);
+    if (amigoAberto !== alvo) return;
+    alvo.dados = d; alvo.indiquei = ind || []; alvo.nome = d.nome || alvo.nome;
+  } catch (e) {
+    if (amigoAberto !== alvo) return;
+    alvo.erro = true;
+  }
+  if (tab === "amigos" && amigoAberto === alvo) renderAmigo();
+}
+function renderAmigo() {
+  const A = amigoAberto;
+  const top = `<button class="back" id="voltar">‹ Amigos</button>`;
+  if (!A.dados) {
+    view.innerHTML = `${top}<div class="me">${avatarHTML(A.nome, "big")}<div class="meinfo"><b>${esc(A.nome)}</b></div></div>
+      <p class="muted center pad">${A.erro ? "📴 Não consegui abrir a lista agora. Precisa de internet." : "Carregando a lista…"}</p>`;
+    $("#voltar").onclick = () => { amigoAberto = null; renderAmigos(); };
+    return;
+  }
+  const meus = store.all();
+  const meuKey = new Map(meus.map(i => [i.key, i]));
+  const itens = A.dados.items || [];
+  const quer = itens.filter(i => i.status === "want").sort(store.byQuality);
+  const viu = itens.filter(i => i.status === "seen").sort((a, b) => (b.note || 0) - (a.note || 0) || (b.seenAt || 0) - (a.seenAt || 0));
+  const comum = quer.filter(i => { const m = meuKey.get(i.key); return m && m.status === "want"; });
+  const praMim = viu.filter(i => i.note >= 8 && !meuKey.has(i.key));
+  const af = afinidade(meus, itens, gostos.get(), A.dados.gostos);
+  const segs = [["comum", "Os dois", comum], ["quer", "Quer ver", quer], ["viu", "Já viu", viu], ["indiquei", "Você indicou", A.indiquei]];
+  if (!A.seg) A.seg = comum.length ? "comum" : "quer";
+  const src = (segs.find(s => s[0] === A.seg) || segs[1])[2];
+  const g = A.dados.gostos;
+  const primeiro = A.nome.split(" ")[0];
+
+  view.innerHTML = `
+    ${top}
+    <div class="me">
+      ${avatarHTML(A.nome, "big")}
+      <div class="meinfo">
+        <b>${esc(A.nome)}</b>
+        <span class="muted small">Quer ver ${quer.length} · Já viu ${viu.length}</span>
+      </div>
+      ${af != null ? `<div class="afin" title="Afinidade"><b>${af}%</b><span>afinidade</span></div>` : ""}
+    </div>
+    ${g && g.generos && g.generos.length ? `<div class="tags">${g.generos.map(id => `<span class="tag">${esc(gostos.label(id))}</span>`).join("")}</div>` : ""}
+    ${comum.length ? `<button class="nowbar" id="sorteiaDois"><span>🎲 <b>Sortear um pros dois</b></span><span class="nowslot">${comum.length} em comum ›</span></button>` : ""}
+    ${praMim.length ? `<div class="lbl">⭐ ${esc(primeiro)} amou e você não viu</div>
+      <div class="strip">${praMim.slice(0, 12).map(m => `<button class="stc" data-k="${esc(m.key)}">${posterHTML(m, "w185", "sposter")}<span class="snote">★ ${m.note}</span></button>`).join("")}</div>` : ""}
+    <div class="seg seg4" role="tablist">
+      ${segs.map(([k, l, arr]) => `<button role="tab" class="${A.seg === k ? "on" : ""}" data-aseg="${k}">${l} <b>${arr.length}</b></button>`).join("")}
+    </div>
+    ${src.length ? `<ol class="queue">${src.map(it => amigoRowHTML(A.seg === "indiquei" ? { ...it.data, _estado: it.estado, _quando: it.created_at } : it, meuKey)).join("")}</ol>`
+      : `<p class="muted center pad">${{ comum: `Nada que vocês dois querem ver ainda. Olha a lista de ${esc(primeiro)} e salva o que curtir!`, quer: "A lista tá vazia.", viu: "Ainda não marcou nada como visto.", indiquei: "Você ainda não indicou nada. Abre um filme e toca em “Indicar pra um amigo”." }[A.seg]}</p>`}
+    <button class="btn ghost danger wide" id="desfaz">Desfazer amizade</button>
+  `;
+  $("#voltar").onclick = () => { amigoAberto = null; renderAmigos(); window.scrollTo(0, 0); };
+  view.querySelectorAll("[data-aseg]").forEach(b => b.onclick = () => { A.seg = b.dataset.aseg; renderAmigo(); });
+  const todos = new Map([...itens, ...A.indiquei.map(x => x.data)].map(i => [i.key, i]));
+  const abre = key => openDetails(meuKey.get(key) || todos.get(key));
+  view.querySelectorAll(".queue .row").forEach(r => r.onclick = () => abre(r.dataset.key));
+  view.querySelectorAll(".stc").forEach(b => b.onclick = () => abre(b.dataset.k));
+  const sd = $("#sorteiaDois"); if (sd) sd.onclick = () => {
+    const m = comum[Math.floor(Math.random() * comum.length)];
+    toast(`🎲 Deu ${m.title}!`);
+    abre(m.key);
+  };
+  $("#desfaz").onclick = async () => {
+    if (!confirm(`Desfazer amizade com ${A.nome}? Vocês param de ver a lista um do outro.`)) return;
+    try { await amigos.desfazer(A.id); amigoAberto = null; renderAmigos(); toast("Amizade desfeita"); }
+    catch (e) { toast("Sem internet agora. Tenta de novo."); }
+  };
+}
+function amigoRowHTML(m, meuKey) {
+  const meu = meuKey.get(m.key);
+  const st = m._estado ? { nova: "📬 Enviada", vista: "👀 Viu a indicação", aceita: "✅ Salvou na lista", dispensada: "🙅 Dispensou" }[m._estado] : "";
+  return `
+    <li class="row" data-key="${esc(m.key)}">
+      ${posterHTML(m, "w185", "thumb")}
+      <div class="rinfo">
+        <div class="rtitle">${esc(m.title)}</div>
+        <div class="rmeta">${typeLabel(m.type)}${m.year ? " · " + esc(m.year) : ""}${m.status === "seen" && m.note ? ` · <span class="mine">★ ${m.note}/10</span>` : ""}</div>
+        ${st ? `<div class="rmeta">${st} · ${esc(quando(m._quando))}</div>` : ""}
+        ${verdictHTML(m)}
+        ${meu && !m._estado ? `<div class="tuyo">${meu.status === "seen" ? "✓ Você já viu" : "🍿 Na sua lista"}</div>` : ""}
+      </div>
+    </li>`;
+}
+
+// ---------- indicar pra amigo ----------
+function sheetIndicar(m) {
+  const lista = amigos.getAmigos() || [];
+  if (!lista.length) {
+    openSheet(`<div class="dbody pad2 center">
+      <div class="empty-emoji">👥</div>
+      <h2 class="h">Sem amigos ainda</h2>
+      <p class="muted">Chama alguém pra Cinemoteca e aí dá pra mandar indicação direto pro app da pessoa.</p>
+      <button class="btn gold wide" id="conv">📲 Chamar amigo</button>
+      <button class="btn ghost wide" id="link">🔗 Mandar só o link do filme</button>
+    </div>`);
+    $("#conv", sheet).onclick = () => { closeSheet(); go("amigos"); convidar(); };
+    $("#link", sheet).onclick = () => indicar(m);
+    return;
+  }
+  const sel = new Set(lista.length === 1 ? [lista[0].user_id] : []);
+  openSheet(`<div class="dbody pad2">
+    <div class="indhead">${posterHTML(m, "w185", "thumb")}<div><div class="lbl">Indicar</div><b>${esc(m.title)}</b></div></div>
+    <div class="lbl">Pra quem?</div>
+    <div class="pick">${lista.map(a => `<button class="pk ${sel.has(a.user_id) ? "on" : ""}" data-pk="${esc(a.user_id)}">${avatarHTML(a.nome)}<span>${esc(a.nome.split(" ")[0])}</span></button>`).join("")}</div>
+    <div class="lbl">Recado (opcional)</div>
+    <textarea class="memo" id="recado" rows="2" maxlength="280" placeholder="Ex: assiste que é a sua cara kkk"></textarea>
+    <button class="btn gold wide" id="manda">🍿 Mandar indicação</button>
+    <button class="btn ghost wide" id="link">🔗 Mandar link pelo WhatsApp</button>
+  </div>`);
+  sheet.querySelectorAll("[data-pk]").forEach(b => b.onclick = () => {
+    const id = b.dataset.pk; sel.has(id) ? sel.delete(id) : sel.add(id); b.classList.toggle("on", sel.has(id));
+  });
+  $("#link", sheet).onclick = () => indicar(m);
+  $("#manda", sheet).onclick = async e => {
+    if (!sel.size) { toast("Escolhe pelo menos um amigo"); return; }
+    const btn = e.currentTarget; btn.disabled = true; btn.textContent = "Mandando…";
+    try {
+      await amigos.indicar([...sel], m, $("#recado", sheet).value.trim());
+      const nomes = lista.filter(a => sel.has(a.user_id)).map(a => a.nome.split(" ")[0]);
+      openDetails(m);
+      toast(`Indicação enviada pra ${nomes.length > 2 ? nomes.length + " amigos" : nomes.join(" e ")} 🍿`);
+    } catch (err) {
+      btn.disabled = false; btn.textContent = "🍿 Mandar indicação";
+      toast(navigator.onLine ? "Não consegui mandar agora. Tenta de novo." : "Sem internet pra mandar agora.");
+    }
+  };
 }
 
 // ---------- SORTEIO ----------
@@ -1020,6 +1368,8 @@ cloud.start();
 gostos.carregar();
 if (!needLogin() && !store.all().length && tmdb.ready()) go("buscar"); else render();
 abrirIndicado();
+amigos.start();
+if (cloud.currentUser()) { amigos.carregar(); abrirConvite(); }
 setTimeout(() => { if (!document.body.classList.contains("sheet-open")) mostrarTutorial(); }, 1500);
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
