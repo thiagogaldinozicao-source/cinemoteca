@@ -1,6 +1,6 @@
 // Amigos e indicações (tudo via funções do Supabase, que conferem a amizade).
 // Guarda uma cópia no aparelho pra aba Amigos abrir mesmo sem internet.
-import * as cloud from "./cloud.js?v=18";
+import * as cloud from "./cloud.js?v=19";
 
 let perfil = null;   // { nome, codigo }
 let amigos = null;   // [{ user_id, nome, desde }]
@@ -29,6 +29,8 @@ export function falhou() { return erro; }
 export function pendentes() { return (caixa || []).filter(i => i.estado !== "aceita"); }
 export function novas() { return (caixa || []).filter(i => i.estado === "nova").length; }
 export function nomeDe(id) { const a = (amigos || []).find(x => x.user_id === id); return a ? a.nome : "Amigo"; }
+export function fotoDe(id) { const a = (amigos || []).find(x => x.user_id === id); return a ? a.foto : null; }
+export const fotoUrl = cloud.fotoUrl;
 // Nome confirmado pela pessoa (o primeiro vem do e-mail e pode ficar feio).
 export function nomeConfirmado() { try { return !!localStorage.getItem(k("nome_ok")); } catch (e) { return true; } }
 export function codigoFmt(c) { return c ? c.slice(0, 3) + "-" + c.slice(3) : ""; }
@@ -101,6 +103,36 @@ export async function salvarNome(nome) {
   emit();
 }
 export function confirmarNome() { try { localStorage.setItem(k("nome_ok"), "1"); } catch (e) { /* ignora */ } emit(); }
+
+// Foto: corta quadrado no centro, reduz pra 256px e vira JPEG leve (~20 KB).
+function comprimir(file) {
+  return new Promise((ok, falha) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const lado = Math.min(img.naturalWidth, img.naturalHeight), T = 256;
+      const c = document.createElement("canvas"); c.width = c.height = T;
+      const g = c.getContext("2d");
+      g.imageSmoothingQuality = "high";
+      g.drawImage(img, (img.naturalWidth - lado) / 2, (img.naturalHeight - lado) / 2, lado, lado, 0, 0, T, T);
+      c.toBlob(b => b ? ok(b) : falha(new Error("imagem")), "image/jpeg", 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); falha(new Error("imagem")); };
+    img.src = url;
+  });
+}
+export async function trocarFoto(file) {
+  const f = await cloud.subirFoto(await comprimir(file));
+  perfil = { ...perfil, foto: f };
+  gravar("perfil", perfil);
+  emit();
+}
+export async function removerFoto() {
+  await cloud.tirarFoto();
+  perfil = { ...perfil, foto: null };
+  gravar("perfil", perfil);
+  emit();
+}
 
 export async function verConvite(cod) {
   const r = await cloud.rpc("ver_convite", { cod });

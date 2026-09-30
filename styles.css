@@ -321,6 +321,11 @@ nav.bottom button{ position:relative; }
   background:var(--red); color:#fff; font:700 10.5px/17px 'Sora',sans-serif; text-align:center; filter:none; opacity:1; }
 .av{ --h:40; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:44px; height:44px; border-radius:50%;
   background:hsl(var(--h) 45% 32%); color:hsl(var(--h) 80% 88%); font-weight:700; font-size:15px; letter-spacing:.5px; }
+.av{ position:relative; overflow:hidden; }
+.av img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:hsl(var(--h) 45% 32%); }
+.avbtn{ position:relative; padding:0; border:0; background:none; border-radius:50%; cursor:pointer; flex-shrink:0; }
+.avcam{ position:absolute; right:-3px; bottom:-3px; width:24px; height:24px; border-radius:50%; display:flex; align-items:center;
+  justify-content:center; font-size:12px; background:var(--gold); box-shadow:0 0 0 2px var(--bg, #111); }
 .av.big{ width:58px; height:58px; font-size:19px; }
 .av.huge{ width:84px; height:84px; font-size:28px; margin:8px auto 4px; }
 .av.mini{ width:20px; height:20px; font-size:8.5px; vertical-align:-5px; }

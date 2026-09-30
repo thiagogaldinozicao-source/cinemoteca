@@ -1,7 +1,7 @@
 // Conta e nuvem (Supabase): login por código no e-mail e sincronização da lista.
 // A lista continua no aparelho (funciona sem internet) e vai/vem da nuvem
 // sempre que tem conexão.
-import * as store from "./store.js?v=18";
+import * as store from "./store.js?v=19";
 
 const cfg = window.CINEMOTECA_CONFIG || {};
 const URL_ = (cfg.SUPABASE_URL || "").trim().replace(/\/+$/, "");
@@ -149,6 +149,20 @@ export async function rpc(fn, args) {
   const { data, error } = await sb.rpc(fn, args || {});
   if (error) throw error;
   return data;
+}
+// Foto do perfil (bucket público "avatares", um arquivo por pessoa).
+export function fotoUrl(f) { return f && URL_ ? `${URL_}/storage/v1/object/public/avatares/${f}` : ""; }
+export async function subirFoto(blob) {
+  if (!sb || !user) { const e = new Error("offline"); e.offline = true; throw e; }
+  const { error } = await sb.storage.from("avatares").upload(`${user.id}.jpg`, blob,
+    { upsert: true, contentType: "image/jpeg", cacheControl: "31536000" });
+  if (error) throw error;
+  return rpc("salvar_foto", { v: Date.now() });
+}
+export async function tirarFoto() {
+  if (!sb || !user) { const e = new Error("offline"); e.offline = true; throw e; }
+  await rpc("salvar_foto", { v: null });
+  await sb.storage.from("avatares").remove([`${user.id}.jpg`]);
 }
 export function functionsUrl(name) { return `${URL_}/functions/v1/${name}`; }
 export function publicKey() { return KEY; }

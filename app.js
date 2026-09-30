@@ -1,9 +1,9 @@
-import * as tmdb from "./tmdb.js?v=18";
-import * as store from "./store.js?v=18";
-import * as now from "./now.js?v=18";
-import * as cloud from "./cloud.js?v=18";
-import * as gostos from "./gostos.js?v=18";
-import * as amigos from "./amigos.js?v=18";
+import * as tmdb from "./tmdb.js?v=19";
+import * as store from "./store.js?v=19";
+import * as now from "./now.js?v=19";
+import * as cloud from "./cloud.js?v=19";
+import * as gostos from "./gostos.js?v=19";
+import * as amigos from "./amigos.js?v=19";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -757,7 +757,8 @@ function refreshSheet(m) {
 // ---------- AMIGOS ----------
 let amigoAberto = null;   // { id, nome, dados, indiquei, seg, erro }
 const iniciais = n => (String(n || "?").trim().split(/\s+/).map(p => p[0]).join("").slice(0, 2) || "?").toUpperCase();
-const avatarHTML = (nome, cls = "") => `<span class="av ${cls}" style="--h:${[...String(nome)].reduce((a, c) => a + c.charCodeAt(0), 0) % 360}">${esc(iniciais(nome))}</span>`;
+// Foto (se tiver) por cima das iniciais; se a foto não carregar, ficam as iniciais.
+const avatarHTML = (nome, cls = "", foto = null) => `<span class="av ${cls}" style="--h:${[...String(nome)].reduce((a, c) => a + c.charCodeAt(0), 0) % 360}">${esc(iniciais(nome))}${foto ? `<img src="${esc(amigos.fotoUrl(foto))}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : ""}</span>`;
 function quando(ts) {
   const d = (Date.now() - new Date(ts).getTime()) / 864e5;
   if (d < 1) return "hoje"; if (d < 2) return "ontem"; if (d < 30) return `há ${Math.floor(d)} dias`;
@@ -801,7 +802,7 @@ function renderAmigos() {
       <button class="btn gold wide" id="nomeOk">Pronto</button>
     </div>`}
     <div class="me">
-      ${avatarHTML(p.nome, "big")}
+      <button class="avbtn" id="minhaFoto" aria-label="Foto do perfil">${avatarHTML(p.nome, "big", p.foto)}<span class="avcam">📷</span></button>
       <div class="meinfo">
         <b>${esc(p.nome)}</b> ${nomeOk ? `<button class="lnk" id="nomeEd" aria-label="Mudar nome">✏️</button>` : ""}
         <span class="muted small">Seu código: <b class="cod">${esc(amigos.codigoFmt(p.codigo))}</b></span>
@@ -819,7 +820,7 @@ function renderAmigos() {
     <div class="lbl">Seus amigos ${lista && lista.length ? `<b class="cnt">${lista.length}</b>` : ""}</div>
     ${lista && lista.length ? `<ul class="amigos">${lista.map(a => `
       <li class="amg" data-amigo="${esc(a.user_id)}">
-        ${avatarHTML(a.nome)}
+        ${avatarHTML(a.nome, "", a.foto)}
         <div class="rinfo"><div class="rtitle">${esc(a.nome)}</div><div class="rmeta">Amigos desde ${esc(quando(a.desde))}</div></div>
         <span class="chev">›</span>
       </li>`).join("")}</ul>`
@@ -842,6 +843,7 @@ function renderAmigos() {
   $("#convidar").onclick = convidar;
   $("#temCod").onclick = sheetCodigo;
   $("#verQr").onclick = sheetQr;
+  $("#minhaFoto").onclick = sheetFoto;
   view.querySelectorAll(".amg").forEach(li => li.onclick = () => abrirAmigo(li.dataset.amigo));
   view.querySelectorAll(".ind").forEach(li => {
     const i = caixa.find(x => String(x.id) === li.dataset.ind);
@@ -863,7 +865,7 @@ function indHTML(i) {
       <div class="rinfo">
         <div class="rtitle">${esc(m.title)}</div>
         <div class="rmeta">${typeLabel(m.type)}${m.year ? " · " + esc(m.year) : ""} · ${esc(quando(i.created_at))}</div>
-        <div class="quem">${avatarHTML(i.nome, "mini")} <b>${esc(i.nome)}</b>${i.msg ? `: “${esc(i.msg)}”` : " te indicou"}</div>
+        <div class="quem">${avatarHTML(i.nome, "mini", i.foto)} <b>${esc(i.nome)}</b>${i.msg ? `: “${esc(i.msg)}”` : " te indicou"}</div>
         ${verdictHTML(m)}
         <div class="iacts">
           ${meu ? `<span class="muted small">${meu.status === "seen" ? "✓ Você já viu" : "✓ Já tá na sua lista"}</span>
@@ -885,7 +887,7 @@ function aceitarInd(i) {
 function indicadoPorHTML(m) {
   const q = cloud.currentUser() ? amigos.quemIndicou(m.key) : [];
   if (!q.length) return "";
-  return `<div class="indpor">${q.map(i => `<div>${avatarHTML(i.nome, "mini")} <b>${esc(i.nome)}</b> te indicou${i.msg ? `: “${esc(i.msg)}”` : ""}</div>`).join("")}</div>`;
+  return `<div class="indpor">${q.map(i => `<div>${avatarHTML(i.nome, "mini", i.foto)} <b>${esc(i.nome)}</b> te indicou${i.msg ? `: “${esc(i.msg)}”` : ""}</div>`).join("")}</div>`;
 }
 
 // ---------- convite ----------
@@ -903,7 +905,7 @@ function carregaQr() {
   if (window.qrcode) return Promise.resolve();
   if (!qrLib) qrLib = new Promise((ok, falha) => {
     const sc = document.createElement("script");
-    sc.src = "vendor/qrcode.js?v=18"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    sc.src = "vendor/qrcode.js?v=19"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
     document.head.appendChild(sc);
   });
   return qrLib;
@@ -934,6 +936,36 @@ async function sheetQr() {
       sheetQr();
       toast(`Código novo: ${amigos.codigoFmt(c)}`);
     } catch (e) { toast("Sem internet agora. Tenta de novo."); }
+  };
+}
+// Foto do perfil: sem foto abre a galeria direto; com foto pergunta se troca ou tira.
+function escolherFoto() {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*"; inp.hidden = true;
+  document.body.appendChild(inp);
+  inp.onchange = async () => {
+    const f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
+    if (!navigator.onLine) { toast("Sem internet agora. Tenta de novo."); return; }
+    toast("Subindo a foto…");
+    try { await amigos.trocarFoto(f); toast("📸 Foto nova!"); }
+    catch (e) { toast(e.message === "imagem" ? "Não consegui abrir essa imagem." : "Não deu pra subir agora. Tenta de novo."); }
+  };
+  inp.click();
+}
+function sheetFoto() {
+  const p = amigos.getPerfil(); if (!p) return;
+  if (!p.foto) { escolherFoto(); return; }
+  openSheet(`<div class="dbody pad2 center">
+    ${avatarHTML(p.nome, "huge", p.foto)}
+    <h2 class="h">Sua foto</h2>
+    <p class="muted small">É assim que seus amigos te veem.</p>
+    <button class="btn gold wide" id="fotoTroca">📷 Trocar foto</button>
+    <button class="btn ghost wide" id="fotoTira">Tirar foto</button>
+  </div>`);
+  $("#fotoTroca", sheet).onclick = () => { closeSheet(); escolherFoto(); };
+  $("#fotoTira", sheet).onclick = async () => {
+    try { await amigos.removerFoto(); closeSheet(); toast("Foto removida"); }
+    catch (e) { toast("Sem internet agora. Tenta de novo."); }
   };
 }
 amigos.onEntrou(novos => {
@@ -975,7 +1007,7 @@ async function confirmarConvite(cod) {
   if (eu && dono.user_id === eu.id) { closeSheet(); toast("Esse é o seu próprio código 😅"); return; }
   if (dono.ja_amigos) { closeSheet(); toast(`Você e ${dono.nome} já são amigos`); return; }
   openSheet(`<div class="dbody pad2 center">
-    ${avatarHTML(dono.nome, "huge")}
+    ${avatarHTML(dono.nome, "huge", dono.foto)}
     <h2 class="h">${esc(dono.nome)}</h2>
     <p class="muted">te chamou pra ser amigo na Cinemoteca. Vocês vão ver a lista um do outro e poder mandar indicação.</p>
     <button class="btn gold wide" id="aceitaOk">🤝 Aceitar</button>
@@ -987,7 +1019,7 @@ async function confirmarConvite(cod) {
       await amigos.aceitarConvite(cod);
       closeSheet();
       toast(`🎉 Agora você e ${dono.nome} são amigos!`);
-      abrirAmigo(dono.user_id, dono.nome);
+      abrirAmigo(dono.user_id, dono.nome, dono.foto);
     } catch (e) { toast("Não deu certo agora. Tenta de novo."); }
   };
 }
@@ -1003,15 +1035,15 @@ function afinidade(meus, dele, gm, gd) {
   if (!uni && !comum) return null;
   return Math.round(35 + 65 * (0.6 * jg + 0.4 * jt));
 }
-async function abrirAmigo(id, nome) {
-  amigoAberto = { id, nome: nome || amigos.nomeDe(id), dados: null, indiquei: [], seg: null };
+async function abrirAmigo(id, nome, foto) {
+  amigoAberto = { id, nome: nome || amigos.nomeDe(id), foto: foto || amigos.fotoDe(id), dados: null, indiquei: [], seg: null };
   if (tab !== "amigos") { tab = "amigos"; document.querySelectorAll("nav.bottom button").forEach(b => b.classList.toggle("on", b.dataset.tab === "amigos")); }
   renderAmigo(); window.scrollTo(0, 0);
   const alvo = amigoAberto;
   try {
     const [d, ind] = await Promise.all([amigos.listaDo(id), amigos.indiqueiPra(id).catch(() => [])]);
     if (amigoAberto !== alvo) return;
-    alvo.dados = d; alvo.indiquei = ind || []; alvo.nome = d.nome || alvo.nome;
+    alvo.dados = d; alvo.indiquei = ind || []; alvo.nome = d.nome || alvo.nome; if (d.foto !== undefined) alvo.foto = d.foto;
   } catch (e) {
     if (amigoAberto !== alvo) return;
     alvo.erro = true;
@@ -1022,7 +1054,7 @@ function renderAmigo() {
   const A = amigoAberto;
   const top = `<button class="back" id="voltar">‹ Amigos</button>`;
   if (!A.dados) {
-    view.innerHTML = `${top}<div class="me">${avatarHTML(A.nome, "big")}<div class="meinfo"><b>${esc(A.nome)}</b></div></div>
+    view.innerHTML = `${top}<div class="me">${avatarHTML(A.nome, "big", A.foto)}<div class="meinfo"><b>${esc(A.nome)}</b></div></div>
       <p class="muted center pad">${A.erro ? "📴 Não consegui abrir a lista agora. Precisa de internet." : "Carregando a lista…"}</p>`;
     $("#voltar").onclick = () => { amigoAberto = null; renderAmigos(); };
     return;
@@ -1044,7 +1076,7 @@ function renderAmigo() {
   view.innerHTML = `
     ${top}
     <div class="me">
-      ${avatarHTML(A.nome, "big")}
+      ${avatarHTML(A.nome, "big", A.foto)}
       <div class="meinfo">
         <b>${esc(A.nome)}</b>
         <span class="muted small">Quer ver ${quer.length} · Já viu ${viu.length}</span>
@@ -1114,7 +1146,7 @@ function sheetIndicar(m) {
   openSheet(`<div class="dbody pad2">
     <div class="indhead">${posterHTML(m, "w185", "thumb")}<div><div class="lbl">Indicar</div><b>${esc(m.title)}</b></div></div>
     <div class="lbl">Pra quem?</div>
-    <div class="pick">${lista.map(a => `<button class="pk ${sel.has(a.user_id) ? "on" : ""}" data-pk="${esc(a.user_id)}">${avatarHTML(a.nome)}<span>${esc(a.nome.split(" ")[0])}</span></button>`).join("")}</div>
+    <div class="pick">${lista.map(a => `<button class="pk ${sel.has(a.user_id) ? "on" : ""}" data-pk="${esc(a.user_id)}">${avatarHTML(a.nome, "", a.foto)}<span>${esc(a.nome.split(" ")[0])}</span></button>`).join("")}</div>
     <div class="lbl">Recado (opcional)</div>
     <textarea class="memo" id="recado" rows="2" maxlength="280" placeholder="Ex: assiste que é a sua cara kkk"></textarea>
     <button class="btn gold wide" id="manda">🍿 Mandar indicação</button>
