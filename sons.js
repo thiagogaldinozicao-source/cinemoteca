@@ -155,6 +155,65 @@ export function enviar() { marca(); vib(); tom(520, { dur: 0.2, vol: 0.1, ate: 1
 export function erro() { marca(); tom(233, { dur: 0.1, vol: 0.1, tipo: "triangle" }); tom(196, { t: 0.12, dur: 0.14, vol: 0.1, tipo: "triangle" }); }
 export function teste() { visto(); }
 
+// ---------- navegação e escolhas ----------
+// trocar aba de dentro (Quero ver/Já vi, Filmes/Séries, filtros): tique de seletor, tipo roleta do iPhone
+export function selecao() { marca(); vib(); estalo(0, 4200, 0.06); tom(1200, { dur: 0.035, vol: 0.04 }); }
+// escolher/desmarcar (gêneros, amigos pra indicar): sobe quando liga, desce quando desliga
+export function marcaChip(on) {
+  marca(); vib();
+  if (on) { tom(660, { dur: 0.06, vol: 0.09, ate: 990 }); tom(1980, { t: 0.04, dur: 0.08, vol: 0.02 }); }
+  else tom(700, { dur: 0.07, vol: 0.06, ate: 460 });
+}
+// interruptor dos Ajustes
+export function chave(on) { marca(); vib(); estalo(0, on ? 3000 : 1800, 0.1); tom(on ? 880 : 520, { t: 0.02, dur: 0.06, vol: 0.05 }); }
+// trocar de tela dentro de uma folha já aberta (detalhes → outro título, passo do tutorial)
+export function pagina() { marca(); sopro({ dur: 0.16, de: 900, ate: 2400, vol: 0.03, q: 0.8 }); tom(1046.5, { t: 0.03, dur: 0.06, vol: 0.025 }); }
+// entrar numa tela (perfil do amigo) / voltar dela
+export function entra() { marca(); sopro({ dur: 0.18, de: 500, ate: 1600, vol: 0.035 }); tom(784, { dur: 0.06, vol: 0.04, ate: 988 }); }
+export function volta() { marca(); sopro({ dur: 0.16, de: 1500, ate: 500, vol: 0.03 }); tom(988, { dur: 0.06, vol: 0.035, ate: 740 }); }
+// "Outra sugestão": cartinha passando
+export function proximo() { marca(); vib(); sopro({ dur: 0.14, de: 2600, ate: 900, vol: 0.04, q: 0.9 }); tom(880, { t: 0.08, dur: 0.12, vol: 0.06, fx: true }); }
+// "O que ver agora" e trailer: projetor ligando (clac-clac + zumbido grave)
+export function projetor() {
+  marca(); vib();
+  estalo(0, 1800, 0.12); estalo(0.07, 1600, 0.09);
+  tom(110, { t: 0.05, dur: 0.45, vol: 0.05, tipo: "triangle" });
+  tom(659.25, { t: 0.18, dur: 0.4, vol: 0.06, fx: true }); tom(987.77, { t: 0.26, dur: 0.5, vol: 0.05, fx: true });
+}
+
+// ---------- deslizar ----------
+// passou do ponto: pra direita (salvar/já vi) agudo, pra esquerda (tirar) mais grave
+export function passou(dir) { marca(); vib(); estalo(0, dir > 0 ? 3400 : 1900, 0.09); tom(dir > 0 ? 1320 : 620, { dur: 0.05, vol: 0.05 }); }
+// voltou pra trás do ponto (desistiu)
+export function recuou() { marca(); tom(900, { dur: 0.04, vol: 0.03, ate: 600 }); }
+// soltou sem fazer nada: elástico voltando
+export function solta() { marca(); tom(300, { dur: 0.09, vol: 0.04, ate: 420, tipo: "triangle" }); }
+
+// ---------- amigos e conta ----------
+export function ding() { // chegou indicação / aviso bom
+  marca(); vib(2);
+  tom(1318.51, { dur: 0.35, vol: 0.09, fx: true }); tom(987.77, { t: 0.14, dur: 0.5, vol: 0.09, fx: true });
+}
+export function amizade() { // amigo novo: acorde quentinho subindo
+  marca(); vib(2);
+  [392, 493.88, 587.33, 783.99].forEach((f, i) => tom(f, { t: i * 0.06, dur: 0.7, vol: 0.07, fx: true }));
+  tom(1567.98, { t: 0.3, dur: 0.6, vol: 0.03, fx: true });
+}
+export function dispensar() { marca(); vib(); sopro({ dur: 0.18, de: 1200, ate: 400, vol: 0.03 }); tom(560, { dur: 0.1, vol: 0.05, ate: 420 }); }
+export function ok() { marca(); vib(); tom(880, { dur: 0.09, vol: 0.08 }); tom(1318.51, { t: 0.07, dur: 0.2, vol: 0.07, fx: true }); }
+export function copiar() { marca(); vib(); estalo(0, 3000, 0.08); estalo(0.06, 3600, 0.07); tom(1567.98, { t: 0.08, dur: 0.1, vol: 0.04 }); }
+export function foto() { // obturador
+  marca(); vib();
+  estalo(0, 2200, 0.16); sopro({ t: 0.01, dur: 0.07, de: 3000, ate: 1500, vol: 0.06, q: 0.6 }); estalo(0.09, 1700, 0.12);
+}
+export function sincroniza() { marca(); sopro({ dur: 0.3, de: 600, ate: 2000, vol: 0.03 }); sopro({ t: 0.18, dur: 0.3, de: 2000, ate: 600, vol: 0.025 }); }
+export function sair() { marca(); [783.99, 587.33, 392].forEach((f, i) => tom(f, { t: i * 0.08, dur: 0.25, vol: 0.06, tipo: "triangle" })); }
+export function entrou() { // login deu certo
+  marca(); vib(2);
+  [523.25, 783.99, 1046.5].forEach((f, i) => tom(f, { t: i * 0.08, dur: 0.5, vol: 0.08, fx: true }));
+}
+export function apagaTudo() { marca(); vib(2); tom(330, { dur: 0.5, vol: 0.12, ate: 80, tipo: "triangle" }); sopro({ dur: 0.5, de: 2000, ate: 200, vol: 0.05 }); }
+
 // Clique em qualquer botão que não tem som próprio: um "tic" bem baixinho.
 document.addEventListener("click", e => {
   const el = e.target.closest && e.target.closest("button, a, .row, .res, label, [role=tab]");

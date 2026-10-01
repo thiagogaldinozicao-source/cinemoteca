@@ -1,10 +1,10 @@
-import * as tmdb from "./tmdb.js?v=23";
-import * as store from "./store.js?v=23";
-import * as now from "./now.js?v=23";
-import * as cloud from "./cloud.js?v=23";
-import * as gostos from "./gostos.js?v=23";
-import * as amigos from "./amigos.js?v=23";
-import * as som from "./sons.js?v=23";
+import * as tmdb from "./tmdb.js?v=24";
+import * as store from "./store.js?v=24";
+import * as now from "./now.js?v=24";
+import * as cloud from "./cloud.js?v=24";
+import * as gostos from "./gostos.js?v=24";
+import * as amigos from "./amigos.js?v=24";
+import * as som from "./sons.js?v=24";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -31,6 +31,9 @@ function toast(msg, acao, fn) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove("show"), acao ? 5000 : 2200);
 }
+
+// Aviso de que algo não deu certo: com o som de erro.
+function ruim(msg) { som.erro(); toast(msg); }
 
 // ---------- DESLIZAR NOS CARDS ----------
 // Só no dedo (no mouse o card continua só clicável).
@@ -66,7 +69,9 @@ function swipeable(card, opts) {
     card.classList.toggle("swL", mx < 0 && !!opts.left);
     if (side) { hint.textContent = side.label; hint.className = "swhint " + (mx > 0 ? "l " : "r ") + (side.cls || ""); }
     const ok = !!side && Math.abs(dx) > Math.min(110, w * 0.3);
-    if (ok && !card.classList.contains("swOk")) som.tique();
+    const era = card.classList.contains("swOk");
+    if (ok && !era) som.passou(dx > 0 ? 1 : -1);
+    else if (!ok && era) som.recuou();
     card.classList.toggle("swOk", ok);
   });
   const end = e => {
@@ -78,7 +83,7 @@ function swipeable(card, opts) {
     if (side && Math.abs(dx) > Math.min(110, w * 0.3)) {
       card.style.transition = "transform .18s"; card.style.transform = `translateX(${dx > 0 ? w : -w}px)`;
       setTimeout(() => { side.fn(card); reset(); }, 170);
-    } else reset();
+    } else { if (Math.abs(dx) > 30) som.solta(); reset(); }
   };
   card.addEventListener("pointerup", end);
   card.addEventListener("pointercancel", end);
@@ -181,6 +186,7 @@ cloud.onChange(() => {
 });
 window.addEventListener("cinemoteca:migrou", e => {
   const { total, pending } = e.detail || {};
+  if (!pending) som.ok();
   toast(pending ? `Sua lista (${total}) vai subir pra nuvem quando tiver internet` : `✅ Sua lista (${total}) subiu pra nuvem`);
 });
 
@@ -212,11 +218,12 @@ function renderGostos() {
     </div>`;
   view.querySelectorAll("[data-g]").forEach(b => b.onclick = () => {
     const id = b.dataset.g;
+    som.marcaChip(!escolha.generos.has(id));
     escolha.generos.has(id) ? escolha.generos.delete(id) : escolha.generos.add(id);
     escolha.mexeu = true;
     const top = window.scrollY; renderGostos(); window.scrollTo(0, top);
   });
-  view.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { escolha.tipo = b.dataset.t; escolha.mexeu = true; const top = window.scrollY; renderGostos(); window.scrollTo(0, top); });
+  view.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { if (escolha.tipo !== b.dataset.t) som.selecao(); escolha.tipo = b.dataset.t; escolha.mexeu = true; const top = window.scrollY; renderGostos(); window.scrollTo(0, top); });
   $("#gOk").onclick = () => {
     const eraEdicao = editandoGostos;
     editandoGostos = false;
@@ -224,6 +231,7 @@ function renderGostos() {
     escolha = null;
     document.body.classList.remove("auth");
     searchQuery = "";
+    som.entrou();
     toast(eraEdicao ? "Gostos atualizados!" : "Prontinho! Olha as indicações pra você 🍿");
     go("buscar");
     if (!eraEdicao) setTimeout(mostrarTutorial, 600);
@@ -260,10 +268,10 @@ function renderLogin() {
     $("#fEmail").onsubmit = async e => {
       e.preventDefault();
       const v = email.value.trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { toast("Confere o e-mail."); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { ruim("Confere o e-mail."); return; }
       const b = $("#send"); b.disabled = true; b.textContent = "Enviando…";
       try { await cloud.sendCode(v); loginEmail = v; loginStep = "code"; renderLogin(); }
-      catch (err) { toast(loginError(err)); b.disabled = false; b.textContent = "Receber código"; }
+      catch (err) { ruim(loginError(err)); b.disabled = false; b.textContent = "Receber código"; }
     };
     if (!loginEmail) setTimeout(() => email.focus(), 50);
     return;
@@ -286,16 +294,16 @@ function renderLogin() {
   setTimeout(() => code.focus(), 50);
   const submit = async () => {
     const v = code.value.replace(/\D/g, "");
-    if (v.length < 6) { toast("O código tem 6 números (ou mais)."); return; }
+    if (v.length < 6) { ruim("O código tem 6 números (ou mais)."); return; }
     const b = $("#enter"); b.disabled = true; b.textContent = "Entrando…";
-    try { await cloud.verifyCode(loginEmail, v); toast("Pronto, você entrou! 🎉"); loginStep = "email"; }
-    catch (err) { toast("Código errado ou vencido. Confere ou pede outro."); b.disabled = false; b.textContent = "Entrar"; }
+    try { await cloud.verifyCode(loginEmail, v); som.entrou(); toast("Pronto, você entrou! 🎉"); loginStep = "email"; }
+    catch (err) { ruim("Código errado ou vencido. Confere ou pede outro."); b.disabled = false; b.textContent = "Entrar"; }
   };
   $("#fCode").onsubmit = e => { e.preventDefault(); submit(); };
   $("#again").onclick = async () => {
-    try { await cloud.sendCode(loginEmail); toast("Mandei outro código."); } catch (err) { toast(loginError(err)); }
+    try { await cloud.sendCode(loginEmail); som.enviar(); toast("Mandei outro código."); } catch (err) { ruim(loginError(err)); }
   };
-  $("#other").onclick = () => { loginStep = "email"; renderLogin(); };
+  $("#other").onclick = () => { som.volta(); loginStep = "email"; renderLogin(); };
 }
 function loginError(err) {
   const m = String((err && err.message) || "").toLowerCase();
@@ -351,8 +359,8 @@ function renderLista() {
     view.querySelectorAll("[data-pkey]").forEach(el => { if (el.dataset.pkey === bumpKey) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); } });
     bumpKey = null;
   }
-  view.querySelectorAll("[data-seg]").forEach(b => b.onclick = () => { listSeg = b.dataset.seg; renderLista(); });
-  view.querySelectorAll("[data-type]").forEach(b => b.onclick = () => { listType = b.dataset.type; renderLista(); });
+  view.querySelectorAll("[data-seg]").forEach(b => b.onclick = () => { if (listSeg !== b.dataset.seg) som.selecao(); listSeg = b.dataset.seg; renderLista(); });
+  view.querySelectorAll("[data-type]").forEach(b => b.onclick = () => { if (listType !== b.dataset.type) som.selecao(); listType = b.dataset.type; renderLista(); });
   view.querySelectorAll(".row").forEach(r => {
     r.onclick = e => {
       const it = store.get(r.dataset.key);
@@ -577,7 +585,7 @@ async function runSearch() {
     box.innerHTML = `${convite}${praHTML}${query ? "" : `<h3 class="sec">🔥 Em alta essa semana</h3>`}
       <ul class="results">${list.map(resultHTML).join("")}</ul>`;
     const sg = $("#setG"); if (sg) sg.onclick = editarGostos;
-    box.querySelectorAll("[data-pf]").forEach(b => b.onclick = () => { praFiltro = b.dataset.pf || null; runSearch(); });
+    box.querySelectorAll("[data-pf]").forEach(b => b.onclick = () => { som.selecao(); praFiltro = b.dataset.pf || null; runSearch(); });
     const all = pra.concat(list);
     box.querySelectorAll(".res").forEach(el => {
       const m = all.find(x => x.key === el.dataset.key);
@@ -634,7 +642,7 @@ let sheetToken = 0;
 // Topo da folha de baixo (alça + botão fechar).
 const SHEET_TOP = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>`;
 function openSheet(html, mudo) {
-  if (!mudo && !document.body.classList.contains("sheet-open")) som.abre();
+  if (!mudo) document.body.classList.contains("sheet-open") ? som.pagina() : som.abre();
   sheetToken++;
   sheet.innerHTML = `${SHEET_TOP}${html}`;
   sheet.scrollTop = 0;
@@ -796,7 +804,7 @@ function mostrarTutorial(forcar) {
       ${i < TUTO.length - 1 ? `<button class="btn ghost wide" id="tSkip">Pular</button>` : ""}
     </div>`);
     const fim = () => { tutoAberto = false; closeSheet(); };
-    $("#tNext", sheet).onclick = () => { if (++i < TUTO.length) passo(); else fim(); };
+    $("#tNext", sheet).onclick = () => { if (++i < TUTO.length) passo(); else { som.entrou(); tutoAberto = false; closeSheet(true); } };
     const sk = $("#tSkip", sheet); if (sk) sk.onclick = fim;
     $(".close", sheet).onclick = fim;
   };
@@ -810,11 +818,12 @@ async function indicar(m) {
   const nota = m.vote != null && m.votes >= 50 ? ` · ${m.vote.toFixed(1)}` : "";
   const txt = `🎬 Te indico: ${m.title}${m.year ? ` (${m.year})` : ""}\n${v.emoji} ${v.label}${nota}`;
   const url = linkDe(m);
+  som.enviar();
   if (navigator.share) {
     try { await navigator.share({ title: m.title, text: txt, url }); } catch (e) { /* cancelou */ }
     return;
   }
-  try { await navigator.clipboard.writeText(txt + "\n" + url); toast("Copiado! É só colar no WhatsApp"); }
+  try { await navigator.clipboard.writeText(txt + "\n" + url); som.copiar(); toast("Copiado! É só colar no WhatsApp"); }
   catch (e) { prompt("Copia e manda:", txt + " " + url); }
 }
 // Abriu por um link de indicação (?t=movie:123): mostra o título.
@@ -876,6 +885,7 @@ function wireDetails(m) {
   }
   const tr = sheet.querySelector("[data-trailer]");
   if (tr) tr.onclick = () => {
+    som.projetor();
     const f = document.createElement("iframe");
     f.src = `https://www.youtube-nocookie.com/embed/${tr.dataset.trailer}?autoplay=1&playsinline=1&rel=0`;
     f.title = "Trailer";
@@ -927,7 +937,7 @@ amigos.onNovas(lista => {
   if (tab === "amigos" && !amigoAberto) return;
   const i = lista[0];
   const txt = lista.length > 1 ? `🎬 Chegaram ${lista.length} indicações de amigos` : `🎬 ${i.nome} te indicou ${i.data.title}`;
-  toast(txt, "Ver", () => go("amigos"));
+  som.ding(); toast(txt, "Ver", () => go("amigos"));
 });
 
 function renderAmigos() {
@@ -976,20 +986,20 @@ function renderAmigos() {
   `;
   const ni = $("#nomeOk"); if (ni) ni.onclick = async () => {
     const v = $("#nomeIn").value.trim();
-    if (!v) { toast("Coloca um nome"); return; }
-    try { if (v !== p.nome) await amigos.salvarNome(v); else amigos.confirmarNome(); toast("Beleza!"); }
-    catch (e) { toast("Sem internet agora. Tenta de novo."); }
+    if (!v) { ruim("Coloca um nome"); return; }
+    try { if (v !== p.nome) await amigos.salvarNome(v); else amigos.confirmarNome(); som.ok(); toast("Beleza!"); }
+    catch (e) { ruim("Sem internet agora. Tenta de novo."); }
   };
   const ne = $("#nomeEd"); if (ne) ne.onclick = async () => {
     const v = (prompt("Seu nome pros amigos:", p.nome) || "").trim();
     if (!v || v === p.nome) return;
-    try { await amigos.salvarNome(v); toast("Nome trocado"); } catch (e) { toast("Sem internet agora. Tenta de novo."); }
+    try { await amigos.salvarNome(v); som.ok(); toast("Nome trocado"); } catch (e) { ruim("Sem internet agora. Tenta de novo."); }
   };
   $("#convidar").onclick = convidar;
   $("#temCod").onclick = sheetCodigo;
   $("#verQr").onclick = sheetQr;
   $("#minhaFoto").onclick = sheetFoto;
-  view.querySelectorAll(".amg").forEach(li => li.onclick = () => abrirAmigo(li.dataset.amigo));
+  view.querySelectorAll(".amg").forEach(li => li.onclick = () => { som.entra(); abrirAmigo(li.dataset.amigo); });
   view.querySelectorAll(".ind").forEach(li => {
     const i = caixa.find(x => String(x.id) === li.dataset.ind);
     li.onclick = e => {
@@ -997,7 +1007,7 @@ function renderAmigos() {
       if (!b) { openDetails(store.get(i.key) || i.data); return; }
       e.stopPropagation();
       if (b.dataset.ia === "ok") aceitarInd(i);
-      else { amigos.dispensar(i); toast("Indicação dispensada"); }
+      else { som.dispensar(); amigos.dispensar(i); toast("Indicação dispensada"); }
     };
   });
   amigos.lerCaixa();
@@ -1022,7 +1032,7 @@ function indHTML(i) {
 }
 function aceitarInd(i) {
   const ok = store.get(i.key) ? true : store.add(i.data, "want");
-  if (!ok) { toast("Não consegui salvar no aparelho."); return; }
+  if (!ok) { ruim("Não consegui salvar no aparelho."); return; }
   const it = store.get(i.key);
   if (it && !it.memo) store.setMemo(i.key, `Indicação de ${i.nome}${i.msg ? ": " + i.msg : ""}`.slice(0, 300));
   amigos.aceitar(i);
@@ -1041,8 +1051,9 @@ async function convidar() {
   const p = amigos.getPerfil(); if (!p) return;
   const url = amigos.linkConvite();
   const txt = `🍿 Bora ser amigo na Cinemoteca! A gente vê a lista um do outro e manda indicação de filme e série.\nMeu código: ${amigos.codigoFmt(p.codigo)}`;
+  som.enviar();
   if (navigator.share) { try { await navigator.share({ title: "Cinemoteca", text: txt, url }); } catch (e) { /* cancelou */ } return; }
-  try { await navigator.clipboard.writeText(txt + "\n" + url); toast("Copiado! É só colar no WhatsApp"); }
+  try { await navigator.clipboard.writeText(txt + "\n" + url); som.copiar(); toast("Copiado! É só colar no WhatsApp"); }
   catch (e) { prompt("Copia e manda:", txt + " " + url); }
 }
 // QR code (a outra pessoa aponta a câmera e abre o convite).
@@ -1051,7 +1062,7 @@ function carregaQr() {
   if (window.qrcode) return Promise.resolve();
   if (!qrLib) qrLib = new Promise((ok, falha) => {
     const sc = document.createElement("script");
-    sc.src = "vendor/qrcode.js?v=23"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    sc.src = "vendor/qrcode.js?v=24"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
     document.head.appendChild(sc);
   });
   return qrLib;
@@ -1080,8 +1091,8 @@ async function sheetQr() {
     try {
       const c = await amigos.trocarCodigo();
       sheetQr();
-      toast(`Código novo: ${amigos.codigoFmt(c)}`);
-    } catch (e) { toast("Sem internet agora. Tenta de novo."); }
+      som.ok(); toast(`Código novo: ${amigos.codigoFmt(c)}`);
+    } catch (e) { ruim("Sem internet agora. Tenta de novo."); }
   };
 }
 // Foto do perfil: sem foto abre a galeria direto; com foto pergunta se troca ou tira.
@@ -1091,10 +1102,10 @@ function escolherFoto() {
   document.body.appendChild(inp);
   inp.onchange = async () => {
     const f = inp.files && inp.files[0]; inp.remove(); if (!f) return;
-    if (!navigator.onLine) { toast("Sem internet agora. Tenta de novo."); return; }
+    if (!navigator.onLine) { ruim("Sem internet agora. Tenta de novo."); return; }
     toast("Subindo a foto…");
-    try { await amigos.trocarFoto(f); toast("📸 Foto nova!"); }
-    catch (e) { toast(e.message === "imagem" ? "Não consegui abrir essa imagem." : "Não deu pra subir agora. Tenta de novo."); }
+    try { await amigos.trocarFoto(f); som.foto(); toast("📸 Foto nova!"); }
+    catch (e) { ruim(e.message === "imagem" ? "Não consegui abrir essa imagem." : "Não deu pra subir agora. Tenta de novo."); }
   };
   inp.click();
 }
@@ -1110,12 +1121,13 @@ function sheetFoto() {
   </div>`);
   $("#fotoTroca", sheet).onclick = () => { closeSheet(); escolherFoto(); };
   $("#fotoTira", sheet).onclick = async () => {
-    try { await amigos.removerFoto(); closeSheet(); toast("Foto removida"); }
-    catch (e) { toast("Sem internet agora. Tenta de novo."); }
+    try { await amigos.removerFoto(); closeSheet(true); som.dispensar(); toast("Foto removida"); }
+    catch (e) { ruim("Sem internet agora. Tenta de novo."); }
   };
 }
 amigos.onEntrou(novos => {
   const n = novos[0].nome;
+  som.amizade();
   toast(novos.length > 1 ? `🎉 ${novos.length} amigos novos na Cinemoteca!` : `🎉 ${n} aceitou seu convite!`, "Ver", () =>
     novos.length > 1 ? go("amigos") : abrirAmigo(novos[0].user_id, n));
 });
@@ -1128,7 +1140,7 @@ function sheetCodigo() {
   </div>`);
   const inp = $("#codIn", sheet);
   setTimeout(() => inp.focus(), 250);
-  const ir = () => { const c = inp.value.replace(/[^a-z0-9]/gi, "").toUpperCase(); if (c.length < 6) { toast("O código tem 6 letras/números"); return; } confirmarConvite(c); };
+  const ir = () => { const c = inp.value.replace(/[^a-z0-9]/gi, "").toUpperCase(); if (c.length < 6) { ruim("O código tem 6 letras/números"); return; } confirmarConvite(c); };
   $("#codOk", sheet).onclick = ir;
   inp.addEventListener("keydown", e => { if (e.key === "Enter") ir(); });
 }
@@ -1147,8 +1159,8 @@ function abrirConvite() {
 async function confirmarConvite(cod) {
   let dono;
   try { dono = await amigos.verConvite(cod); }
-  catch (e) { toast(navigator.onLine ? "Não consegui abrir o convite agora." : "Sem internet pra abrir o convite."); return; }
-  if (!dono) { toast("Esse código não existe. Confere com seu amigo."); return; }
+  catch (e) { ruim(navigator.onLine ? "Não consegui abrir o convite agora." : "Sem internet pra abrir o convite."); return; }
+  if (!dono) { ruim("Esse código não existe. Confere com seu amigo."); return; }
   const eu = cloud.currentUser();
   if (eu && dono.user_id === eu.id) { closeSheet(); toast("Esse é o seu próprio código 😅"); return; }
   if (dono.ja_amigos) { closeSheet(); toast(`Você e ${dono.nome} já são amigos`); return; }
@@ -1163,10 +1175,11 @@ async function confirmarConvite(cod) {
   $("#aceitaOk", sheet).onclick = async () => {
     try {
       await amigos.aceitarConvite(cod);
-      closeSheet();
+      closeSheet(true);
+      som.amizade();
       toast(`🎉 Agora você e ${dono.nome} são amigos!`);
       abrirAmigo(dono.user_id, dono.nome, dono.foto);
-    } catch (e) { toast("Não deu certo agora. Tenta de novo."); }
+    } catch (e) { ruim("Não deu certo agora. Tenta de novo."); }
   };
 }
 
@@ -1203,7 +1216,7 @@ function renderAmigo() {
   if (!A.dados) {
     view.innerHTML = `${top}<div class="me">${avatarHTML(A.nome, "big", A.foto)}<div class="meinfo"><b>${esc(A.nome)}</b></div></div>
       <p class="muted center pad">${A.erro ? "📴 Não consegui abrir a lista agora. Precisa de internet." : "Carregando a lista…"}</p>`;
-    $("#voltar").onclick = () => { amigoAberto = null; renderAmigos(); };
+    $("#voltar").onclick = () => { som.volta(); amigoAberto = null; renderAmigos(); };
     return;
   }
   const meus = store.all();
@@ -1241,21 +1254,22 @@ function renderAmigo() {
       : `<p class="muted center pad">${{ comum: `Nada que vocês dois querem ver ainda. Olha a lista de ${esc(primeiro)} e salva o que curtir!`, quer: "A lista tá vazia.", viu: "Ainda não marcou nada como visto.", indiquei: "Você ainda não indicou nada. Abre um filme e toca em “Indicar pra um amigo”." }[A.seg]}</p>`}
     <button class="btn ghost danger wide" id="desfaz">Desfazer amizade</button>
   `;
-  $("#voltar").onclick = () => { amigoAberto = null; renderAmigos(); window.scrollTo(0, 0); };
-  view.querySelectorAll("[data-aseg]").forEach(b => b.onclick = () => { A.seg = b.dataset.aseg; renderAmigo(); });
+  $("#voltar").onclick = () => { som.volta(); amigoAberto = null; renderAmigos(); window.scrollTo(0, 0); };
+  view.querySelectorAll("[data-aseg]").forEach(b => b.onclick = () => { if (A.seg !== b.dataset.aseg) som.selecao(); A.seg = b.dataset.aseg; renderAmigo(); });
   const todos = new Map([...itens, ...A.indiquei.map(x => x.data)].map(i => [i.key, i]));
   const abre = key => openDetails(meuKey.get(key) || todos.get(key));
   view.querySelectorAll(".queue .row").forEach(r => r.onclick = () => abre(r.dataset.key));
   view.querySelectorAll(".stc").forEach(b => b.onclick = () => abre(b.dataset.k));
   const sd = $("#sorteiaDois"); if (sd) sd.onclick = () => {
     const m = comum[Math.floor(Math.random() * comum.length)];
+    som.dado();
     toast(`🎲 Deu ${m.title}!`);
     abre(m.key);
   };
   $("#desfaz").onclick = async () => {
     if (!confirm(`Desfazer amizade com ${A.nome}? Vocês param de ver a lista um do outro.`)) return;
-    try { await amigos.desfazer(A.id); amigoAberto = null; renderAmigos(); toast("Amizade desfeita"); }
-    catch (e) { toast("Sem internet agora. Tenta de novo."); }
+    try { await amigos.desfazer(A.id); amigoAberto = null; som.tirar(); renderAmigos(); toast("Amizade desfeita"); }
+    catch (e) { ruim("Sem internet agora. Tenta de novo."); }
   };
 }
 function amigoRowHTML(m, meuKey) {
@@ -1300,11 +1314,11 @@ function sheetIndicar(m) {
     <button class="btn ghost wide" id="link">🔗 Mandar link pelo WhatsApp</button>
   </div>`);
   sheet.querySelectorAll("[data-pk]").forEach(b => b.onclick = () => {
-    const id = b.dataset.pk; sel.has(id) ? sel.delete(id) : sel.add(id); b.classList.toggle("on", sel.has(id));
+    const id = b.dataset.pk; som.marcaChip(!sel.has(id)); sel.has(id) ? sel.delete(id) : sel.add(id); b.classList.toggle("on", sel.has(id));
   });
   $("#link", sheet).onclick = () => indicar(m);
   $("#manda", sheet).onclick = async e => {
-    if (!sel.size) { toast("Escolhe pelo menos um amigo"); return; }
+    if (!sel.size) { ruim("Escolhe pelo menos um amigo"); return; }
     const btn = e.currentTarget; btn.disabled = true; btn.textContent = "Mandando…";
     try {
       await amigos.indicar([...sel], m, $("#recado", sheet).value.trim());
@@ -1313,8 +1327,8 @@ function sheetIndicar(m) {
       openDetails(m);
       toast(`Indicação enviada pra ${nomes.length > 2 ? nomes.length + " amigos" : nomes.join(" e ")} 🍿`);
     } catch (err) {
-      btn.disabled = false; btn.textContent = "🍿 Mandar indicação"; som.erro();
-      toast(navigator.onLine ? "Não consegui mandar agora. Tenta de novo." : "Sem internet pra mandar agora.");
+      btn.disabled = false; btn.textContent = "🍿 Mandar indicação";
+      ruim(navigator.onLine ? "Não consegui mandar agora. Tenta de novo." : "Sem internet pra mandar agora.");
     }
   };
 }
@@ -1332,7 +1346,7 @@ function sortear() {
   const pool = store.all().filter(i => i.status === seg && (tipo === "all" || i.type === tipo));
   const nome = nomeTipo(tipo);
   const nomeSeg = seg === "want" ? "Quero ver" : "Já vi";
-  if (!pool.length) { toast(`Não tem ${nome} em ${nomeSeg} pra sortear`); return; }
+  if (!pool.length) { ruim(`Não tem ${nome} em ${nomeSeg} pra sortear`); return; }
   const ch = seg + ":" + tipo;
   const reg = sorteados();
   let feitos = (reg[ch] || []).filter(k => pool.some(i => i.key === k));
@@ -1373,11 +1387,12 @@ async function openNow() {
   const tipo = listType;
   const nome = nomeTipo(tipo);
   const want = () => store.all().filter(i => i.status === "want" && (tipo === "all" || i.type === tipo));
-  if (!want().length) { toast(`Não tem ${nome} em Quero ver 😉`); return; }
+  if (!want().length) { ruim(`Não tem ${nome} em Quero ver 😉`); return; }
   const slot = now.slotFor();
+  som.projetor();
   openSheet(`
     <div class="nowhead"><div class="lbl">O que ver agora · ${esc(nome)}</div><h2>${esc(slot.label)}</h2></div>
-    <div class="dbody" id="nowBody"><p class="muted">Pensando…</p></div>`);
+    <div class="dbody" id="nowBody"><p class="muted">Pensando…</p></div>`, true);
   const token = sheetToken;
   const alive = () => token === sheetToken && document.body.classList.contains("sheet-open");
   const body = () => $("#nowBody", sheet);
@@ -1420,7 +1435,7 @@ async function openNow() {
       </div>
       <p class="tiny center">${idx + 1} de ${list.length} que combinam com agora</p>`;
     $("#nowOpen", sheet).onclick = () => openDetails(m);
-    $("#nowNext", sheet).onclick = () => { idx++; render(); };
+    $("#nowNext", sheet).onclick = () => { som.proximo(); idx++; render(); const c = $(".nowcard", sheet); if (c) c.classList.add("rola"); };
   };
   render();
 }
@@ -1482,19 +1497,21 @@ function renderAjustes() {
 
     <p class="tiny center">Este produto usa a API do TMDB, mas não é endossado nem certificado pelo TMDB.<br>Dados de onde assistir fornecidos pela JustWatch.</p>
   `;
-  $("#tSom").onclick = e => { const v = !som.ligado(); som.liga("som", v); e.currentTarget.setAttribute("aria-checked", v); if (v) som.teste(); };
-  $("#tVib").onclick = e => { const v = !som.vibraLigado(); som.liga("vibra", v); e.currentTarget.setAttribute("aria-checked", v); if (v) som.tique(); };
+  $("#tSom").onclick = e => { const v = !som.ligado(); som.liga("som", v); e.currentTarget.setAttribute("aria-checked", v); if (v) som.chave(true); };
+  $("#tVib").onclick = e => { const v = !som.vibraLigado(); som.liga("vibra", v); e.currentTarget.setAttribute("aria-checked", v); som.chave(v); };
   $("#editG").onclick = editarGostos;
   $("#verTuto").onclick = () => mostrarTutorial(true);
-  const sn = $("#syncNow"); if (sn) sn.onclick = () => { cloud.sync(); toast("Sincronizando…"); };
+  const sn = $("#syncNow"); if (sn) sn.onclick = () => { som.sincroniza(); cloud.sync(); toast("Sincronizando…"); };
   const lo = $("#logout"); if (lo) lo.onclick = async () => {
     const pend = store.pendingCount();
     if (!confirm(pend && !navigator.onLine
       ? `Tem ${pend} alteração(ões) que ainda não subiram (sem internet). Elas ficam guardadas neste aparelho e sobem quando você entrar de novo. Sair mesmo?`
       : "Sair da sua conta neste aparelho? Sua lista continua salva na nuvem.")) return;
+    som.sair();
     await cloud.signOut();
   };
   $("#exp").onclick = () => {
+    som.ok();
     const blob = new Blob([store.exportJSON()], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -1505,13 +1522,13 @@ function renderAjustes() {
   $("#imp").onchange = async e => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     let data;
-    try { data = JSON.parse(await f.text()); } catch (err) { toast("Esse arquivo não é da Cinemoteca."); return; }
+    try { data = JSON.parse(await f.text()); } catch (err) { ruim("Esse arquivo não é da Cinemoteca."); return; }
     if (data && Array.isArray(data.titles)) { importTitles(data.titles); return; }
-    try { const k = store.importJSON(JSON.stringify(data)); toast(k ? `${k} títulos voltaram pra lista` : "Nada novo: tudo do backup já tá na lista"); renderAjustes(); }
-    catch (err) { toast("Esse arquivo não é um backup da Cinemoteca."); }
+    try { const k = store.importJSON(JSON.stringify(data)); if (k) som.entrou(); toast(k ? `${k} títulos voltaram pra lista` : "Nada novo: tudo do backup já tá na lista"); renderAjustes(); }
+    catch (err) { ruim("Esse arquivo não é um backup da Cinemoteca."); }
   };
   const w = $("#wipe"); if (w) w.onclick = () => {
-    if (confirm(u ? "Apagar toda a sua lista (na conta e em todos os aparelhos)? Isso não tem volta." : "Apagar toda a sua lista deste aparelho? Isso não tem volta.")) { store.clearAll(); toast("Lista apagada"); renderAjustes(); }
+    if (confirm(u ? "Apagar toda a sua lista (na conta e em todos os aparelhos)? Isso não tem volta." : "Apagar toda a sua lista deste aparelho? Isso não tem volta.")) { som.apagaTudo(); store.clearAll(); toast("Lista apagada"); renderAjustes(); }
   };
 }
 
@@ -1530,7 +1547,7 @@ function syncText() {
 let importing = false;
 async function importTitles(titles) {
   if (importing) return;
-  if (!tmdb.ready()) { toast("Entra na sua conta primeiro."); return; }
+  if (!tmdb.ready()) { ruim("Entra na sua conta primeiro."); return; }
   importing = true;
   go("ajustes");
   const box = document.createElement("div");
