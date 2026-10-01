@@ -1,6 +1,6 @@
 // Amigos e indicações (tudo via funções do Supabase, que conferem a amizade).
 // Guarda uma cópia no aparelho pra aba Amigos abrir mesmo sem internet.
-import * as cloud from "./cloud.js?v=19";
+import * as cloud from "./cloud.js?v=20";
 
 let perfil = null;   // { nome, codigo }
 let amigos = null;   // [{ user_id, nome, desde }]

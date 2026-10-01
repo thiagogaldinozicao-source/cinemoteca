@@ -1,9 +1,9 @@
-import * as tmdb from "./tmdb.js?v=19";
-import * as store from "./store.js?v=19";
-import * as now from "./now.js?v=19";
-import * as cloud from "./cloud.js?v=19";
-import * as gostos from "./gostos.js?v=19";
-import * as amigos from "./amigos.js?v=19";
+import * as tmdb from "./tmdb.js?v=20";
+import * as store from "./store.js?v=20";
+import * as now from "./now.js?v=20";
+import * as cloud from "./cloud.js?v=20";
+import * as gostos from "./gostos.js?v=20";
+import * as amigos from "./amigos.js?v=20";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -905,7 +905,7 @@ function carregaQr() {
   if (window.qrcode) return Promise.resolve();
   if (!qrLib) qrLib = new Promise((ok, falha) => {
     const sc = document.createElement("script");
-    sc.src = "vendor/qrcode.js?v=19"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    sc.src = "vendor/qrcode.js?v=20"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
     document.head.appendChild(sc);
   });
   return qrLib;
@@ -1219,11 +1219,14 @@ function sortear() {
 
 // ---------- O QUE VER AGORA ----------
 async function openNow() {
-  const want = () => store.all().filter(i => i.status === "want");
-  if (!want().length) { toast("Adiciona uns títulos em Quero ver primeiro 😉"); return; }
+  // Respeita o filtro da aba (Filmes / Séries / Tudo).
+  const tipo = listType;
+  const nomeTipo = tipo === "movie" ? "filmes" : tipo === "tv" ? "séries" : "títulos";
+  const want = () => store.all().filter(i => i.status === "want" && (tipo === "all" || i.type === tipo));
+  if (!want().length) { toast(`Não tem ${nomeTipo} em Quero ver 😉`); return; }
   const slot = now.slotFor();
   openSheet(`
-    <div class="nowhead"><div class="lbl">O que ver agora</div><h2>${esc(slot.label)}</h2></div>
+    <div class="nowhead"><div class="lbl">O que ver agora · ${esc(nomeTipo)}</div><h2>${esc(slot.label)}</h2></div>
     <div class="dbody" id="nowBody"><p class="muted">Pensando…</p></div>`);
   const token = sheetToken;
   const alive = () => token === sheetToken && document.body.classList.contains("sheet-open");
