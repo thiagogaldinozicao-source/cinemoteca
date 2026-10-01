@@ -40,6 +40,8 @@ function ac() {
 const destrava = () => { if (cfg.som) ac(); };
 window.addEventListener("pointerdown", destrava, { passive: true });
 window.addEventListener("touchend", destrava, { passive: true });
+// voltou do segundo plano: o iPhone suspende o áudio, retoma (só se já tinha sido liberado por um toque)
+document.addEventListener("visibilitychange", () => { if (!document.hidden && ctx && cfg.som && ctx.state !== "running") ctx.resume().catch(() => {}); });
 
 let ultimo = 0; // som "de verdade" tocado agora há pouco: o clique genérico fica quieto
 function marca() { ultimo = performance.now(); }

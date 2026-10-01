@@ -1,10 +1,10 @@
-import * as tmdb from "./tmdb.js?v=25";
-import * as store from "./store.js?v=25";
-import * as now from "./now.js?v=25";
-import * as cloud from "./cloud.js?v=25";
-import * as gostos from "./gostos.js?v=25";
-import * as amigos from "./amigos.js?v=25";
-import * as som from "./sons.js?v=25";
+import * as tmdb from "./tmdb.js?v=26";
+import * as store from "./store.js?v=26";
+import * as now from "./now.js?v=26";
+import * as cloud from "./cloud.js?v=26";
+import * as gostos from "./gostos.js?v=26";
+import * as amigos from "./amigos.js?v=26";
+import * as som from "./sons.js?v=26";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -186,7 +186,6 @@ cloud.onChange(() => {
 });
 window.addEventListener("cinemoteca:migrou", e => {
   const { total, pending } = e.detail || {};
-  if (!pending) som.ok();
   toast(pending ? `Sua lista (${total}) vai subir pra nuvem quando tiver internet` : `✅ Sua lista (${total}) subiu pra nuvem`);
 });
 
@@ -937,7 +936,7 @@ amigos.onNovas(lista => {
   if (tab === "amigos" && !amigoAberto) return;
   const i = lista[0];
   const txt = lista.length > 1 ? `🎬 Chegaram ${lista.length} indicações de amigos` : `🎬 ${i.nome} te indicou ${i.data.title}`;
-  som.ding(); toast(txt, "Ver", () => go("amigos"));
+  toast(txt, "Ver", () => go("amigos"));
 });
 
 function renderAmigos() {
@@ -1062,7 +1061,7 @@ function carregaQr() {
   if (window.qrcode) return Promise.resolve();
   if (!qrLib) qrLib = new Promise((ok, falha) => {
     const sc = document.createElement("script");
-    sc.src = "vendor/qrcode.js?v=25"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    sc.src = "vendor/qrcode.js?v=26"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
     document.head.appendChild(sc);
   });
   return qrLib;
@@ -1127,7 +1126,6 @@ function sheetFoto() {
 }
 amigos.onEntrou(novos => {
   const n = novos[0].nome;
-  som.amizade();
   toast(novos.length > 1 ? `🎉 ${novos.length} amigos novos na Cinemoteca!` : `🎉 ${n} aceitou seu convite!`, "Ver", () =>
     novos.length > 1 ? go("amigos") : abrirAmigo(novos[0].user_id, n));
 });
