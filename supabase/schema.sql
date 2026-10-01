@@ -71,3 +71,9 @@ create policy "altera os proprios gostos" on public.gostos
   for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 revoke all on public.gostos from anon;
 grant select, insert, update on public.gostos to authenticated;
+
+-- Limite de tamanho (um título ocupa ~500 bytes): ninguém consegue encher o plano grátis.
+alter table public.items drop constraint if exists items_data_tam;
+alter table public.items add constraint items_data_tam check (octet_length(data::text) < 8000);
+alter table public.gostos drop constraint if exists gostos_data_tam;
+alter table public.gostos add constraint gostos_data_tam check (octet_length(data::text) < 4000);

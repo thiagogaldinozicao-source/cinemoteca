@@ -7,8 +7,10 @@ create table if not exists public.perfis (
   user_id    uuid primary key references auth.users (id) on delete cascade,
   nome       text not null,
   codigo     text not null unique,
+  foto       text,                 -- "{user_id}.jpg?v=123" (ver fotos.sql), null = sem foto
   created_at timestamptz not null default now()
 );
+alter table public.perfis add column if not exists foto text;
 alter table public.perfis enable row level security;
 drop policy if exists "ve o proprio perfil" on public.perfis;
 create policy "ve o proprio perfil" on public.perfis
@@ -59,8 +61,14 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.sao_amigos(uuid, uuid) from public, anon, authenticated;
 
--- Garante o perfil (cria na primeira vez) e devolve nome + código.
-create or replace function public.meu_perfil() returns table (nome text, codigo text)
+-- Perfil, convite, amigos, indicações e lista do amigo (todas devolvem a foto).
+-- "drop" antes porque o formato de retorno mudou quando entrou a foto.
+drop function if exists public.meu_perfil();
+drop function if exists public.ver_convite(text);
+drop function if exists public.meus_amigos();
+drop function if exists public.minhas_indicacoes();
+
+create function public.meu_perfil() returns table (nome text, codigo text, foto text)
 language plpgsql security definer set search_path = '' as $$
 declare
   me uuid := auth.uid();
@@ -83,8 +91,51 @@ begin
       end;
     end loop;
   end if;
-  return query select p.nome, p.codigo from public.perfis p where p.user_id = me;
+  return query select p.nome, p.codigo, p.foto from public.perfis p where p.user_id = me;
 end $$;
+
+create function public.ver_convite(cod text) returns table (user_id uuid, nome text, ja_amigos boolean, foto text)
+language sql stable security definer set search_path = '' as $$
+  select p.user_id, p.nome, public.sao_amigos(p.user_id, auth.uid()), p.foto
+  from public.perfis p
+  where auth.uid() is not null
+    and p.codigo = upper(regexp_replace(cod, '[^A-Za-z0-9]', '', 'g'))
+$$;
+
+create function public.meus_amigos() returns table (user_id uuid, nome text, desde timestamptz, foto text)
+language sql stable security definer set search_path = '' as $$
+  select p.user_id, p.nome, z.created_at, p.foto
+  from public.amizades z
+  join public.perfis p on p.user_id = case when z.a = auth.uid() then z.b else z.a end
+  where auth.uid() in (z.a, z.b)
+  order by p.nome
+$$;
+
+create function public.minhas_indicacoes() returns table
+  (id bigint, de uuid, nome text, key text, data jsonb, msg text, estado text, created_at timestamptz, foto text)
+language sql stable security definer set search_path = '' as $$
+  select x.id, x.de, coalesce(p.nome, 'Amigo'), x.key, x.data, x.msg, x.estado, x.created_at, p.foto
+  from public.indicacoes x left join public.perfis p on p.user_id = x.de
+  where x.para = auth.uid() and x.estado <> 'dispensada'
+  order by x.created_at desc
+  limit 200
+$$;
+
+drop function if exists public.lista_do_amigo(uuid);
+create function public.lista_do_amigo(amigo uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if auth.uid() is null or not public.sao_amigos(auth.uid(), amigo) then raise exception 'nao sao amigos'; end if;
+  return jsonb_build_object(
+    'nome', (select nome from public.perfis where user_id = amigo),
+    'foto', (select foto from public.perfis where user_id = amigo),
+    'gostos', (select data from public.gostos where user_id = amigo),
+    'items', coalesce((select jsonb_agg(i.data - 'memo' - 'order') from public.items i
+                       where i.user_id = amigo and not i.deleted), '[]'::jsonb)
+  );
+end $$;
+
+
 
 create or replace function public.salvar_nome(novo text) returns void
 language plpgsql security definer set search_path = '' as $$
@@ -94,14 +145,6 @@ begin
   update public.perfis set nome = novo where user_id = auth.uid();
 end $$;
 
--- Quem é o dono deste código (pra confirmar antes de aceitar).
-create or replace function public.ver_convite(cod text) returns table (user_id uuid, nome text, ja_amigos boolean)
-language sql stable security definer set search_path = '' as $$
-  select p.user_id, p.nome, public.sao_amigos(p.user_id, auth.uid())
-  from public.perfis p
-  where auth.uid() is not null
-    and p.codigo = upper(regexp_replace(cod, '[^A-Za-z0-9]', '', 'g'))
-$$;
 
 create or replace function public.aceitar_convite(cod text) returns table (user_id uuid, nome text)
 language plpgsql security definer set search_path = '' as $$
@@ -116,32 +159,12 @@ begin
   return query select outro, n;
 end $$;
 
-create or replace function public.meus_amigos() returns table (user_id uuid, nome text, desde timestamptz)
-language sql stable security definer set search_path = '' as $$
-  select p.user_id, p.nome, z.created_at
-  from public.amizades z
-  join public.perfis p on p.user_id = case when z.a = auth.uid() then z.b else z.a end
-  where auth.uid() in (z.a, z.b)
-  order by p.nome
-$$;
 
 create or replace function public.desfazer_amizade(amigo uuid) returns void
 language sql security definer set search_path = '' as $$
   delete from public.amizades where a = least(auth.uid(), amigo) and b = greatest(auth.uid(), amigo)
 $$;
 
--- Lista e gostos do amigo (só se forem amigos).
-create or replace function public.lista_do_amigo(amigo uuid) returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
-begin
-  if auth.uid() is null or not public.sao_amigos(auth.uid(), amigo) then raise exception 'nao sao amigos'; end if;
-  return jsonb_build_object(
-    'nome', (select nome from public.perfis where user_id = amigo),
-    'gostos', (select data from public.gostos where user_id = amigo),
-    'items', coalesce((select jsonb_agg(i.data - 'memo' - 'order') from public.items i
-                       where i.user_id = amigo and not i.deleted), '[]'::jsonb)
-  );
-end $$;
 
 -- Mandar indicação (pode mandar de novo o mesmo: volta a aparecer como nova).
 create or replace function public.indicar(para_quem uuid, chave text, dados jsonb, mensagem text) returns void
@@ -155,16 +178,6 @@ begin
     set data = excluded.data, msg = excluded.msg, estado = 'nova', created_at = now();
 end $$;
 
--- Indicações que chegaram pra mim (com o nome de quem mandou).
-create or replace function public.minhas_indicacoes() returns table
-  (id bigint, de uuid, nome text, key text, data jsonb, msg text, estado text, created_at timestamptz)
-language sql stable security definer set search_path = '' as $$
-  select x.id, x.de, coalesce(p.nome, 'Amigo'), x.key, x.data, x.msg, x.estado, x.created_at
-  from public.indicacoes x left join public.perfis p on p.user_id = x.de
-  where x.para = auth.uid() and x.estado <> 'dispensada'
-  order by x.created_at desc
-  limit 200
-$$;
 
 create or replace function public.marcar_indicacoes(ids bigint[], novo text) returns void
 language plpgsql security definer set search_path = '' as $$

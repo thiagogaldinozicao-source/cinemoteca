@@ -20,7 +20,10 @@ function read(k) {
     if (!raw) return fresh();
     const s = JSON.parse(raw);
     if (!s || typeof s.items !== "object") return fresh();
-    return { items: s.items || {}, dirty: s.dirty || {}, lastPull: s.lastPull || null };
+    // passa pelo limpa: lista guardada por versões antigas pode ter dado fora do formato
+    const items = {};
+    for (const [k, v] of Object.entries(s.items || {})) if (v && v.id && v.type) items[k] = { ...limpa(v), key: k };
+    return { items, dirty: s.dirty || {}, lastPull: s.lastPull || null };
   } catch (e) { return fresh(); }
 }
 function persist() {
@@ -87,7 +90,7 @@ export function applyRemote(rows, pulledUntil) {
   for (const r of rows) {
     if (!r || !r.key || state.dirty[r.key]) continue;
     if (r.deleted) { if (state.items[r.key]) { delete state.items[r.key]; n++; } }
-    else if (r.data && r.data.id && r.data.type) { state.items[r.key] = { ...r.data, key: r.key }; n++; }
+    else if (r.data && r.data.id && r.data.type) { state.items[r.key] = { ...limpa(r.data), key: r.key }; n++; }
   }
   if (pulledUntil) state.lastPull = pulledUntil;
   persist();
@@ -100,7 +103,7 @@ export function mergeIn(items) {
   for (const [k, v] of Object.entries(items || {})) {
     if (!v || !v.id || !v.type || !v.title) continue;
     const cur = state.items[k];
-    if (!cur) { state.items[k] = { ...v, key: k }; touch(k); added++; continue; }
+    if (!cur) { state.items[k] = { ...limpa(v), key: k }; touch(k); added++; continue; }
     let upd = false;
     if (!cur.memo && v.memo) { cur.memo = v.memo; upd = true; }
     if (!cur.note && v.note) { cur.note = v.note; upd = true; }
@@ -112,8 +115,25 @@ export function mergeIn(items) {
 }
 
 // ---------- lista ----------
+// Dado que vem de fora (lista de amigo, indicação, backup, nuvem): só passa no
+// formato certo. Capa fora do padrão do TMDB ("/abc.jpg") vira vazio — senão um
+// texto malicioso na capa viraria código rodando no app. Nota/votos viram número.
+export function limpa(m) {
+  if (!m || typeof m !== "object") return m;
+  const num = v => (v === "" || v == null || !isFinite(+v) ? null : +v);
+  const img = p => (typeof p === "string" && /^\/[\w.-]+$/.test(p) ? p : "");
+  return {
+    ...m, title: String(m.title || "Sem título"), year: String(m.year || "").slice(0, 4),
+    original: m.original ? String(m.original) : "", poster: img(m.poster), backdrop: img(m.backdrop),
+    status: m.status === "seen" ? "seen" : "want",
+    vote: num(m.vote), votes: num(m.votes) || 0, note: num(m.note) || 0,
+    memo: m.memo ? String(m.memo).slice(0, 300) : "",
+    genreIds: Array.isArray(m.genreIds) ? m.genreIds.map(Number).filter(isFinite) : [],
+  };
+}
 // Guarda só o essencial para mostrar a lista sem internet.
-function slim(m) {
+function slim(m0) {
+  const m = limpa(m0);
   return {
     key: m.key, id: m.id, type: m.type, title: m.title, original: m.original || "",
     year: m.year || "", poster: m.poster || "", vote: m.vote ?? null, votes: m.votes || 0,
@@ -170,17 +190,6 @@ export function remove(key) {
   touch(key);
   return changed();
 }
-// Reordena a fila "Quero ver" (usado pelas setas de subir/descer).
-export function move(key, dir) {
-  const want = all().filter(i => i.status === "want").sort(byOrder);
-  const idx = want.findIndex(i => i.key === key);
-  const j = idx + dir;
-  if (idx < 0 || j < 0 || j >= want.length) return;
-  want.forEach((it, k) => { if (it.order !== k) { it.order = k; touch(it.key); } });
-  want[idx].order = j; want[j].order = idx;
-  touch(want[idx].key); touch(want[j].key);
-  changed();
-}
 // Nota "justa": puxa pra 6.5 quem tem pouco voto, pra lançamento com meia dúzia
 // de fãs não passar na frente de clássico com milhares de avaliações.
 export function quality(m) {
@@ -191,36 +200,23 @@ export function quality(m) {
 export function byQuality(a, b) {
   return quality(b) - quality(a) || (a.addedAt || 0) - (b.addedAt || 0);
 }
-export function byOrder(a, b) {
-  const oa = a.order ?? -a.addedAt, ob = b.order ?? -b.addedAt;
-  return oa - ob;
-}
-
 export function exportJSON() {
   return JSON.stringify({ app: "cinemoteca", version: 1, exportedAt: new Date().toISOString(), items: state.items }, null, 2);
 }
 export function importJSON(text) {
   const data = JSON.parse(text);
   if (!data || typeof data.items !== "object") throw new Error("Arquivo inválido");
-  let n = 0;
-  for (const [k, v] of Object.entries(data.items)) {
-    if (!v || !v.id || !v.type || !v.title) continue;
-    state.items[k] = { ...v, key: k };
-    touch(k);
-    n++;
-  }
-  changed();
-  return n;
+  // Junta com a lista atual sem apagar nada (nota, status e anotação atuais ficam).
+  return mergeIn(data.items);
 }
 // Importa um título já achado no TMDB, sem sobrescrever o que já existe.
 // Salva no aparelho uma vez só no fim (flush), pra ser rápido com listas grandes.
-export function addImported(media, { status = "want", memo = "", order = null, note = 0 } = {}) {
+export function addImported(media, { status = "want", memo = "", note = 0 } = {}) {
   if (state.items[media.key]) return false;
   const now = Date.now();
   state.items[media.key] = {
     ...slim(media), status, addedAt: now, seenAt: status === "seen" ? now : null,
     note: note || 0, memo: String(memo || "").slice(0, 300),
-    ...(order != null ? { order } : {}),
   };
   touch(media.key);
   return true;

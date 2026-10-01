@@ -1,6 +1,7 @@
 // Amigos e indicações (tudo via funções do Supabase, que conferem a amizade).
 // Guarda uma cópia no aparelho pra aba Amigos abrir mesmo sem internet.
-import * as cloud from "./cloud.js?v=20";
+import * as cloud from "./cloud.js?v=22";
+import { limpa } from "./store.js?v=22";
 
 let perfil = null;   // { nome, codigo }
 let amigos = null;   // [{ user_id, nome, desde }]
@@ -41,7 +42,7 @@ export function reset() { perfil = amigos = caixa = null; erro = false; emit(); 
 let carregando = null;
 export function carregar() {
   if (!uid()) return Promise.resolve();
-  if (!perfil) { perfil = ler("perfil"); amigos = ler("amigos"); caixa = ler("caixa"); if (perfil) emit(); }
+  if (!perfil) { perfil = ler("perfil"); amigos = ler("amigos"); caixa = (ler("caixa") || []).map(i => ({ ...i, data: limpa(i.data) })); if (perfil) emit(); }
   if (carregando) return carregando;
   carregando = (async () => {
     try {
@@ -57,7 +58,8 @@ export function carregar() {
   return carregando;
 }
 function aplicar(r) {
-  amigos = (r && r.amigos) || []; caixa = (r && r.caixa) || [];
+  amigos = (r && r.amigos) || [];
+  caixa = ((r && r.caixa) || []).map(i => ({ ...i, data: limpa(i.data) }));
   gravar("amigos", amigos); gravar("caixa", caixa);
   avisarNovas();
   avisarEntrou();

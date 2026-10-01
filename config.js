@@ -7,11 +7,7 @@
 //
 // NUNCA coloque aqui a chave "secret" / "service_role" do Supabase nem a chave
 // do TMDB. A do TMDB fica escondida no servidor (segredo TMDB_KEY da função).
-//
-// Com os dois campos vazios o app funciona no modo antigo (lista só no
-// aparelho e chave do TMDB colada em Ajustes).
 window.CINEMOTECA_CONFIG = {
   SUPABASE_URL: "https://tcdsohxqqpktanfklpgi.supabase.co",
-  SUPABASE_KEY: "sb_publishable_8kjom4laQuSN_9qCkIoZQg_HAZCgvdd",
-  TMDB_KEY: ""
+  SUPABASE_KEY: "sb_publishable_8kjom4laQuSN_9qCkIoZQg_HAZCgvdd"
 };

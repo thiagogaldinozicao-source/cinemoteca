@@ -1,9 +1,9 @@
-import * as tmdb from "./tmdb.js?v=20";
-import * as store from "./store.js?v=20";
-import * as now from "./now.js?v=20";
-import * as cloud from "./cloud.js?v=20";
-import * as gostos from "./gostos.js?v=20";
-import * as amigos from "./amigos.js?v=20";
+import * as tmdb from "./tmdb.js?v=22";
+import * as store from "./store.js?v=22";
+import * as now from "./now.js?v=22";
+import * as cloud from "./cloud.js?v=22";
+import * as gostos from "./gostos.js?v=22";
+import * as amigos from "./amigos.js?v=22";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -13,6 +13,7 @@ const sheetBg = $("#sheetBg");
 // ---------- utilidades ----------
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const typeLabel = t => (t === "tv" ? "Série" : "Filme");
+const nomeTipo = t => (t === "movie" ? "filmes" : t === "tv" ? "séries" : "títulos"); // filtro da aba
 
 let toastTimer;
 function toast(msg, acao, fn) {
@@ -99,7 +100,7 @@ function pedirNota(m) {
 
 function posterHTML(m, size = "w342", cls = "poster") {
   const src = tmdb.img(m.poster, size);
-  if (src) return `<img class="${cls}" src="${src}" alt="Capa de ${esc(m.title)}" data-title="${esc(m.title)}" loading="lazy" onerror="imgFail(this)">`;
+  if (src) return `<img class="${cls}" src="${esc(src)}" alt="Capa de ${esc(m.title)}" data-title="${esc(m.title)}" loading="lazy" onerror="imgFail(this)">`;
   return `<div class="${cls} noimg"><span>${esc(m.title)}</span></div>`;
 }
 // Capa que não carregou vira uma capinha com o nome.
@@ -121,8 +122,6 @@ function errorText(e) {
   if (e.kind === "login") return "Sua sessão venceu. Entra de novo em Ajustes.";
   if (e.kind === "no_function") return "A busca ainda não foi ligada no servidor (função tmdb).";
   if (e.kind === "server_key") return "A chave do TMDB no servidor não está funcionando.";
-  if (e.kind === "no_key") return "Falta configurar a chave do TMDB em Ajustes.";
-  if (e.kind === "bad_key") return "A chave do TMDB não funcionou. Confere em Ajustes.";
   if (e.kind === "network") return "Sem internet agora.";
   if (e.kind === "rate") return "Muitas buscas seguidas. Espera uns segundos.";
   return "Deu um problema na busca. Tenta de novo.";
@@ -343,8 +342,6 @@ function renderLista() {
   view.querySelectorAll("[data-type]").forEach(b => b.onclick = () => { listType = b.dataset.type; renderLista(); });
   view.querySelectorAll(".row").forEach(r => {
     r.onclick = e => {
-      const mv = e.target.closest("[data-move]");
-      if (mv) { e.stopPropagation(); store.move(r.dataset.key, +mv.dataset.move); return; }
       const it = store.get(r.dataset.key);
       if (it) openDetails(it);
     };
@@ -365,7 +362,6 @@ function renderLista() {
 }
 function rowHTML(m, k, n) {
   const seen = m.status === "seen";
-  const canMove = false; // a fila é pela qualidade, não pela ordem de adição
   return `
     <li class="row" data-key="${esc(m.key)}">
       <span class="pos">${seen ? "✓" : k + 1}</span>
@@ -376,10 +372,6 @@ function rowHTML(m, k, n) {
         ${m.memo ? `<div class="rmemo">📝 ${esc(m.memo)}</div>` : ""}
         ${verdictHTML(m)}
       </div>
-      ${canMove ? `<div class="mv">
-        <button data-move="-1" aria-label="Subir na fila" ${k === 0 ? "disabled" : ""}>▲</button>
-        <button data-move="1" aria-label="Descer na fila" ${k === n - 1 ? "disabled" : ""}>▼</button>
-      </div>` : ""}
     </li>`;
 }
 
@@ -412,7 +404,7 @@ async function runSearch() {
   const ctl = new AbortController(); searchCtl = ctl;
   const query = searchQuery.trim();
   if (!tmdb.ready()) {
-    box.innerHTML = `<div class="notice">Pra buscar, falta colocar a chave do TMDB. <button class="link" id="goCfg">Ir pra Ajustes</button></div>`;
+    box.innerHTML = `<div class="notice">Entra na sua conta pra buscar. <button class="link" id="goCfg">Ir pra Ajustes</button></div>`;
     $("#goCfg").onclick = () => go("ajustes");
     return;
   }
@@ -465,7 +457,7 @@ async function runSearch() {
   } catch (e) {
     if (e.name === "AbortError") return;
     if (ctl !== searchCtl) return;
-    box.innerHTML = `<div class="notice">${esc(errorText(e))}${["no_key", "bad_key", "login"].includes(e.kind) ? ` <button class="link" id="goCfg">Ir pra Ajustes</button>` : ""}</div>`;
+    box.innerHTML = `<div class="notice">${esc(errorText(e))}${e.kind === "login" ? ` <button class="link" id="goCfg">Ir pra Ajustes</button>` : ""}</div>`;
     const g = $("#goCfg"); if (g) g.onclick = () => go("ajustes");
   }
 }
@@ -495,9 +487,11 @@ function quickAdd(m, el) {
 // ---------- DETALHES (folha de baixo) ----------
 let detailsCtl = null;
 let sheetToken = 0;
+// Topo da folha de baixo (alça + botão fechar).
+const SHEET_TOP = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>`;
 function openSheet(html) {
   sheetToken++;
-  sheet.innerHTML = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>${html}`;
+  sheet.innerHTML = `${SHEET_TOP}${html}`;
   sheet.scrollTop = 0;
   document.body.classList.add("sheet-open");
   $(".close", sheet).onclick = closeSheet;
@@ -529,7 +523,7 @@ async function openDetails(m) {
     if (ctl !== detailsCtl || !document.body.classList.contains("sheet-open")) return;
     if (store.get(d.key)) store.setMeta(d.key, { runtime: d.runtime, epRuntime: d.epRuntime, genreIds: d.genreIds });
     const top = sheet.scrollTop;
-    sheet.innerHTML = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>${detailsHTML(d, d)}`;
+    sheet.innerHTML = `${SHEET_TOP}${detailsHTML(d, d)}`;
     $(".close", sheet).onclick = closeSheet;
     sheet.scrollTop = top;
     wireDetails(d);
@@ -563,7 +557,7 @@ function detailsHTML(m, d) {
   }
 
   return `
-    <div class="hero" ${bd ? `style="background-image:linear-gradient(180deg,rgba(10,10,15,.1),#14141d 92%),url('${bd}')"` : ""}>
+    <div class="hero" ${bd ? `style="background-image:linear-gradient(180deg,rgba(10,10,15,.1),#14141d 92%),url('${esc(bd)}')"` : ""}>
       ${posterHTML(m, "w342", "dposter")}
       <div class="htxt">
         <h2>${esc(m.title)}</h2>
@@ -590,7 +584,7 @@ function providersHTML(d) {
   const p = d.providers;
   const group = (title, arr) => arr.length ? `
     <div class="pgroup"><span class="plbl">${title}</span>
-      <div class="plogos">${arr.map(x => `<img src="${tmdb.img(x.logo, "w92")}" alt="${esc(x.name)}" title="${esc(x.name)}">`).join("")}</div>
+      <div class="plogos">${arr.map(x => `<img src="${esc(tmdb.img(x.logo, "w92"))}" alt="${esc(x.name)}" title="${esc(x.name)}">`).join("")}</div>
     </div>` : "";
   const any = p.stream.length || p.rent.length || p.buy.length;
   return `
@@ -748,7 +742,7 @@ function wireDetails(m) {
 function refreshSheet(m) {
   const top = sheet.scrollTop;
   const d = m.providers ? m : null;
-  sheet.innerHTML = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>${detailsHTML(m, d)}`;
+  sheet.innerHTML = `${SHEET_TOP}${detailsHTML(m, d)}`;
   $(".close", sheet).onclick = closeSheet;
   sheet.scrollTop = top;
   wireDetails(m);
@@ -905,7 +899,7 @@ function carregaQr() {
   if (window.qrcode) return Promise.resolve();
   if (!qrLib) qrLib = new Promise((ok, falha) => {
     const sc = document.createElement("script");
-    sc.src = "vendor/qrcode.js?v=20"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    sc.src = "vendor/qrcode.js?v=22"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
     document.head.appendChild(sc);
   });
   return qrLib;
@@ -1043,7 +1037,8 @@ async function abrirAmigo(id, nome, foto) {
   try {
     const [d, ind] = await Promise.all([amigos.listaDo(id), amigos.indiqueiPra(id).catch(() => [])]);
     if (amigoAberto !== alvo) return;
-    alvo.dados = d; alvo.indiquei = ind || []; alvo.nome = d.nome || alvo.nome; if (d.foto !== undefined) alvo.foto = d.foto;
+    d.items = (d.items || []).map(store.limpa).filter(i => i && i.key);
+    alvo.dados = d; alvo.indiquei = (ind || []).map(x => ({ ...x, data: store.limpa(x.data) })); alvo.nome = d.nome || alvo.nome; if (d.foto !== undefined) alvo.foto = d.foto;
   } catch (e) {
     if (amigoAberto !== alvo) return;
     alvo.erro = true;
@@ -1182,9 +1177,9 @@ function salvaSorteados(o) { try { localStorage.setItem(SORTE_KEY, JSON.stringif
 function sortear() {
   const seg = listSeg, tipo = listType;
   const pool = store.all().filter(i => i.status === seg && (tipo === "all" || i.type === tipo));
-  const nomeTipo = tipo === "movie" ? "filmes" : tipo === "tv" ? "séries" : "títulos";
+  const nome = nomeTipo(tipo);
   const nomeSeg = seg === "want" ? "Quero ver" : "Já vi";
-  if (!pool.length) { toast(`Não tem ${nomeTipo} em ${nomeSeg} pra sortear`); return; }
+  if (!pool.length) { toast(`Não tem ${nome} em ${nomeSeg} pra sortear`); return; }
   const ch = seg + ":" + tipo;
   const reg = sorteados();
   let feitos = (reg[ch] || []).filter(k => pool.some(i => i.key === k));
@@ -1195,7 +1190,7 @@ function sortear() {
   feitos.push(m.key); reg[ch] = feitos; salvaSorteados(reg);
   const faltam = pool.length - feitos.length;
   openSheet(`
-    <div class="nowhead"><div class="lbl">🎲 Sorteio · ${esc(nomeSeg)} · ${esc(nomeTipo)}</div><h2>Deu esse!</h2></div>
+    <div class="nowhead"><div class="lbl">🎲 Sorteio · ${esc(nomeSeg)} · ${esc(nome)}</div><h2>Deu esse!</h2></div>
     <div class="dbody">
       ${recomecou && pool.length > 1 ? `<div class="notice" style="margin:0 0 12px">Já tinham saído todos os ${pool.length}. Comecei o sorteio do zero 🔄</div>` : ""}
       <div class="nowcard">
@@ -1221,12 +1216,12 @@ function sortear() {
 async function openNow() {
   // Respeita o filtro da aba (Filmes / Séries / Tudo).
   const tipo = listType;
-  const nomeTipo = tipo === "movie" ? "filmes" : tipo === "tv" ? "séries" : "títulos";
+  const nome = nomeTipo(tipo);
   const want = () => store.all().filter(i => i.status === "want" && (tipo === "all" || i.type === tipo));
-  if (!want().length) { toast(`Não tem ${nomeTipo} em Quero ver 😉`); return; }
+  if (!want().length) { toast(`Não tem ${nome} em Quero ver 😉`); return; }
   const slot = now.slotFor();
   openSheet(`
-    <div class="nowhead"><div class="lbl">O que ver agora · ${esc(nomeTipo)}</div><h2>${esc(slot.label)}</h2></div>
+    <div class="nowhead"><div class="lbl">O que ver agora · ${esc(nome)}</div><h2>${esc(slot.label)}</h2></div>
     <div class="dbody" id="nowBody"><p class="muted">Pensando…</p></div>`);
   const token = sheetToken;
   const alive = () => token === sheetToken && document.body.classList.contains("sheet-open");
@@ -1278,7 +1273,6 @@ async function openNow() {
 // ---------- AJUSTES ----------
 function renderAjustes() {
   const n = store.all().length;
-  const local = tmdb.hasLocalKey();
   const u = cloud.currentUser();
   view.innerHTML = `
     <h2 class="h">Ajustes</h2>
@@ -1302,16 +1296,6 @@ function renderAjustes() {
       <button class="btn wide" id="editG">🍿 ${gostos.get() && gostos.get().generos && gostos.get().generos.length ? "Mudar meus gostos" : "Escolher meus gostos"}</button>
     </div>
 
-    ${cloud.enabled ? "" : `<div class="card">
-      <div class="lbl">Chave do TMDB</div>
-      <p class="muted small">É o que faz a busca funcionar. Ela fica salva só neste aparelho.</p>
-      <input id="key" type="password" autocomplete="off" placeholder="${local ? "•••• chave salva" : "Cole aqui a chave ou o token"}">
-      <div class="row2">
-        <button class="btn gold" id="saveKey">Salvar chave</button>
-        ${local ? `<button class="btn ghost" id="delKey">Apagar</button>` : ""}
-      </div>
-      <p class="tiny">Como pegar: crie uma conta grátis em themoviedb.org → Configurações → API → peça uma chave de uso pessoal.</p>
-    </div>`}
 
     <div class="card">
       <div class="lbl">Sua lista (${n} ${n === 1 ? "título" : "títulos"})</div>
@@ -1346,12 +1330,6 @@ function renderAjustes() {
       : "Sair da sua conta neste aparelho? Sua lista continua salva na nuvem.")) return;
     await cloud.signOut();
   };
-  const sk = $("#saveKey"); if (sk) sk.onclick = () => {
-    const v = $("#key").value.trim();
-    if (!v) { toast("Cola a chave primeiro."); return; }
-    tmdb.setLocalKey(v); toast("Chave salva! Testa na busca."); renderAjustes();
-  };
-  const dk = $("#delKey"); if (dk) dk.onclick = () => { tmdb.setLocalKey(""); toast("Chave apagada"); renderAjustes(); };
   $("#exp").onclick = () => {
     const blob = new Blob([store.exportJSON()], { type: "application/json" });
     const a = document.createElement("a");
@@ -1365,7 +1343,7 @@ function renderAjustes() {
     let data;
     try { data = JSON.parse(await f.text()); } catch (err) { toast("Esse arquivo não é da Cinemoteca."); return; }
     if (data && Array.isArray(data.titles)) { importTitles(data.titles); return; }
-    try { const k = store.importJSON(JSON.stringify(data)); toast(`${k} títulos restaurados`); renderAjustes(); }
+    try { const k = store.importJSON(JSON.stringify(data)); toast(k ? `${k} títulos voltaram pra lista` : "Nada novo: tudo do backup já tá na lista"); renderAjustes(); }
     catch (err) { toast("Esse arquivo não é um backup da Cinemoteca."); }
   };
   const w = $("#wipe"); if (w) w.onclick = () => {
@@ -1388,7 +1366,7 @@ function syncText() {
 let importing = false;
 async function importTitles(titles) {
   if (importing) return;
-  if (!tmdb.ready()) { toast(cloud.enabled ? "Entra na sua conta primeiro." : "Salva a chave do TMDB primeiro."); return; }
+  if (!tmdb.ready()) { toast("Entra na sua conta primeiro."); return; }
   importing = true;
   go("ajustes");
   const box = document.createElement("div");
@@ -1416,11 +1394,11 @@ async function importTitles(titles) {
         else {
           if (r.loose) loose.push(`${t.title} → ${r.media.title}${r.media.year ? " (" + r.media.year + ")" : ""}`);
           const status = t.status === "seen" ? "seen" : "want";
-          if (store.addImported(r.media, { status, memo: t.memo, order: k, note: +t.note || 0 })) added++; else dup++;
+          if (store.addImported(r.media, { status, memo: t.memo, note: +t.note || 0 })) added++; else dup++;
           if ((added + dup) % 10 === 0) store.flush();
         }
       } catch (e) {
-        if (e.kind === "bad_key" || e.kind === "no_key") { missed.push(t.title); next = list.length; toast(errorText(e)); }
+        if (e.kind === "server_key" || e.kind === "login") { missed.push(t.title); next = list.length; toast(errorText(e)); }
         else missed.push(t.title || t.q);
       }
       done++; show();

@@ -1,86 +1,46 @@
 # 🎬 Cinemoteca
 
-App pra ninguém mais esquecer aquele filme ou série que viu indicado por aí.
-Busca qualquer título, mostra capa, sinopse, se vale a pena e **onde assistir no Brasil**,
-e guarda sua lista de **Quero ver** e **Já vi**.
+Lista de filmes e séries: busca qualquer título (TMDB), diz se vale a pena e onde assistir no Brasil, guarda **Quero ver** / **Já vi**, sorteia o que ver e conecta amigos (ver a lista um do outro e mandar indicação). PWA: instala na tela de início do iPhone e abre sem internet.
 
-Funciona no navegador e dá pra instalar no celular como app (ícone na tela inicial).
+Site: https://thiagogaldinozicao-source.github.io/cinemoteca
 
-## O que já faz
+## Como rodar no computador
 
-- 🔍 Busca por nome em todos os filmes e séries (base do TMDB), em português
-- 🔥 Quando a busca está vazia, mostra o que está em alta na semana
-- 🖼️ Capa, sinopse, gêneros, elenco, direção, trailer e títulos parecidos
-- 📺 Onde assistir no Brasil: assinatura, aluguel e compra
-- ✅ Veredito rápido (Vale muito 🔥 / Vale a pena ✅ / Sessão da tarde 🍿 / Não vale 👎) pela nota do público
-- 📋 Lista **Quero ver** com fila que dá pra reordenar, e **Já vi** com sua nota de 1 a 10
-- 📝 Anotação em cada título: quem indicou, onde viu, com quem quer ver
-- 🎲 Sorteio de um título da sua fila
-- 💾 Backup e restauração da lista (arquivo)
-- 📱 Instalável e abre sem internet (a busca precisa de internet)
-- 👤 Conta por e-mail (código no e-mail, sem senha): a lista fica na nuvem, igual em todo aparelho, e só o dono vê
-- 🔐 Chave do TMDB escondida no servidor: ninguém precisa configurar nada
-- 🍿 Na primeira entrada, a pessoa escolhe os gêneros que curte (estilo Spotify) e a busca mostra "Pra você" com indicações
+Não tem build. Na pasta do projeto:
 
-## Nuvem (Supabase)
+```
+python3 -m http.server 8000
+```
 
-| Arquivo | O que é |
+e abre http://localhost:8000. Usa o mesmo Supabase do site (login por código no e-mail).
+
+## Como publicar
+
+1. Sobe a versão: `./versao.sh 22` (troca todos os `?v=` e o cache do `sw.js` de uma vez).
+2. `git commit` e `git push` na `main`. O GitHub Pages publica sozinho em ~1 min.
+3. No iPhone: fecha o app e abre de novo (às vezes precisa abrir duas vezes).
+
+Ícones têm versão separada (`?v=N` nos links de ícone e no `manifest.webmanifest`). Pra trocar o ícone no iPhone tem que apagar o atalho e adicionar de novo.
+
+## Onde mexer
+
+| Quero mudar… | Arquivo |
 |---|---|
-| `supabase/schema.sql` | Tabela das listas + regras "cada um só vê a sua". Rodar no SQL Editor |
-| `supabase/functions/tmdb/index.ts` | Função `tmdb`: faz a busca com a chave escondida (segredo `TMDB_KEY`) |
-| `cloud.js` | Login e sincronização no app |
-| `gostos.js` | Gêneros que a pessoa curte e as indicações "Pra você" |
-| `vendor/supabase.js` | Biblioteca do Supabase (cópia local, pra abrir sem internet) |
-| `.github/workflows/manter-acordado.yml` | Dá um "oi" no Supabase a cada 3 dias pro projeto grátis não pausar |
+| Telas, textos, botões | `app.js` (dividido por seções `// ---------- NOME ----------`) |
+| Visual, cores | `styles.css` (cores no topo, em `:root`) |
+| Lista no aparelho, backup | `store.js` |
+| Login e sincronização com a nuvem | `cloud.js` |
+| Busca no TMDB, veredito (Vale muito / Não vale) | `tmdb.js` |
+| "O que ver agora?" (dia, hora, duração) | `now.js` |
+| Gêneros e "Pra você" | `gostos.js` |
+| Amigos, convites, indicações | `amigos.js` + `supabase/amigos.sql` |
+| Abrir sem internet, cache | `sw.js` |
+| Endereço e chave pública do Supabase | `config.js` |
 
-No `config.js` vão só o endereço do projeto e a chave **pública** (publishable/anon).
-Nunca a chave secret/service_role nem a do TMDB. Com esses campos vazios o app volta
-pro modo antigo (lista só no aparelho, chave do TMDB em Ajustes).
+## Nuvem (Supabase, plano grátis)
 
-Quem já tinha lista no aparelho: ao entrar pela primeira vez ela sobe pra conta
-(e fica uma cópia de segurança no aparelho).
-
-## Como colocar no ar (grátis, pelo GitHub Pages)
-
-1. No GitHub, abra o repositório → **Settings** → **Pages**
-2. Em **Build and deployment**, escolha **Deploy from a branch**
-3. Branch **main**, pasta **/ (root)** → **Save**
-4. Em 1 ou 2 minutos o link aparece ali mesmo, algo como
-   `https://SEU-USUARIO.github.io/cinemoteca/`
-
-## Chave do TMDB
-
-A busca usa a API gratuita do [TMDB](https://www.themoviedb.org/).
-
-1. Crie uma conta em themoviedb.org
-2. Vá em **Configurações → API** e peça uma chave de uso pessoal
-3. Copie a **API Key** (ou o **API Read Access Token**, o texto longo)
-4. No app, abra **Ajustes → Chave do TMDB**, cole e salve
-
-Com a nuvem ligada, a chave fica só no Supabase (segredo `TMDB_KEY` da função `tmdb`).
-**Nunca coloque a chave no `config.js`**: este repositório é público.
-
-## Estrutura
-
-| Arquivo | O que é |
-|---|---|
-| `index.html` | A página do app |
-| `styles.css` | Visual |
-| `app.js` | Telas: lista, busca, detalhes, ajustes |
-| `tmdb.js` | Conversa com a API do TMDB |
-| `store.js` | Lista salva no aparelho |
-| `sw.js` | Deixa o app abrir sem internet |
-| `manifest.webmanifest`, `icons/` | Instalação como app |
-| `config.js` | Configuração (chave padrão, deixe vazia) |
-
-Não precisa instalar nada nem "compilar": são arquivos estáticos.
-
-## Próximos passos
-
-- Buscar por print ou por um trecho/cena do filme (usa IA)
-- Compartilhar a lista com amigos
-
----
-
-Este produto usa a API do TMDB, mas não é endossado nem certificado pelo TMDB.
-Dados de onde assistir fornecidos pela JustWatch.
+- Projeto `cinemoteca` (São Paulo). Tabelas: `items` (listas), `gostos`, `perfis`, `amizades`, `indicacoes`. Todas com RLS: cada um só vê o que é seu; o que é de amigo passa por funções que conferem a amizade.
+- SQL em `supabase/`, rodar no SQL Editor nesta ordem: `schema.sql`, `amigos.sql`, `fotos.sql`.
+- Função `tmdb` (`supabase/functions/tmdb`): faz a busca com a chave escondida no segredo `TMDB_KEY`.
+- `.github/workflows/manter-acordado.yml` dá um "oi" a cada 3 dias pro projeto grátis não pausar.
+- No `config.js` só vai a chave **pública**. Nunca a `service_role` nem a do TMDB.

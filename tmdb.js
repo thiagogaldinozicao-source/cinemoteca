@@ -1,35 +1,12 @@
-// Acesso à API do TMDB (https://developer.themoviedb.org).
-// Com a nuvem ligada, a busca passa pela função "tmdb" do Supabase, que guarda a
-// chave escondida no servidor. Sem nuvem, usa a chave colada em Ajustes.
-import * as cloud from "./cloud.js?v=20";
+// Acesso à API do TMDB (https://developer.themoviedb.org) pela função "tmdb" do
+// Supabase, que guarda a chave escondida no servidor.
+import * as cloud from "./cloud.js?v=22";
 
-const API = "https://api.themoviedb.org/3";
 const IMG = "https://image.tmdb.org/t/p/";
 const LANG = "pt-BR";
 const REGION = "BR";
-const KEY_STORAGE = "cinemoteca_tmdb_key";
-
-export function getKey() {
-  try {
-    const local = localStorage.getItem(KEY_STORAGE);
-    if (local) return local.trim();
-  } catch (e) { /* armazenamento indisponível */ }
-  const cfg = (window.CINEMOTECA_CONFIG && window.CINEMOTECA_CONFIG.TMDB_KEY) || "";
-  return cfg.trim();
-}
-export function setLocalKey(k) {
-  try {
-    if (k) localStorage.setItem(KEY_STORAGE, k.trim());
-    else localStorage.removeItem(KEY_STORAGE);
-  } catch (e) { /* ignora */ }
-}
-// Dá pra buscar? (logado na nuvem, ou com chave própria no modo antigo)
-export function ready() {
-  return cloud.enabled ? !!cloud.currentUser() : !!getKey();
-}
-export function hasLocalKey() {
-  try { return !!localStorage.getItem(KEY_STORAGE); } catch (e) { return false; }
-}
+// A busca passa sempre pela função "tmdb" do Supabase (chave escondida lá).
+export function ready() { return !!cloud.currentUser(); }
 
 export class TmdbError extends Error {
   constructor(kind, message) { super(message); this.kind = kind; }
@@ -37,34 +14,7 @@ export class TmdbError extends Error {
 
 const cache = new Map();
 
-async function get(path, params = {}, opts = {}) {
-  if (cloud.enabled) return viaCloud(path, params, opts);
-  const { signal } = opts;
-  const key = getKey();
-  if (!key) throw new TmdbError("no_key", "Sem chave do TMDB");
-  const url = new URL(API + path);
-  const headers = { accept: "application/json" };
-  // Token v4 (JWT) vai no cabeçalho; chave v3 vai na URL.
-  if (key.startsWith("eyJ")) headers.Authorization = "Bearer " + key;
-  else url.searchParams.set("api_key", key);
-  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null) url.searchParams.set(k, v);
-  const ck = url.toString();
-  if (cache.has(ck)) return cache.get(ck);
-  let res;
-  try {
-    res = await fetch(url, { headers, signal });
-  } catch (e) {
-    if (e.name === "AbortError") throw e;
-    throw new TmdbError("network", "Sem conexão");
-  }
-  if (res.status === 401) throw new TmdbError("bad_key", "Chave do TMDB inválida");
-  if (res.status === 429) throw new TmdbError("rate", "Muitas buscas seguidas");
-  if (!res.ok) throw new TmdbError("http", "Erro " + res.status);
-  const data = await res.json();
-  if (cache.size > 300) cache.clear();
-  cache.set(ck, data);
-  return data;
-}
+const get = (path, params = {}, opts = {}) => viaCloud(path, params, opts);
 
 async function viaCloud(path, params, { signal } = {}) {
   const url = new URL(cloud.functionsUrl("tmdb"));
@@ -99,7 +49,8 @@ async function viaCloud(path, params, { signal } = {}) {
 }
 
 export function img(path, size = "w342") {
-  return path ? IMG + size + path : "";
+  // Só caminho do TMDB ("/abc.jpg"): qualquer outra coisa vira sem capa.
+  return /^\/[\w.-]+$/.test(path || "") ? IMG + size + path : "";
 }
 
 function yearOf(d) { return d ? String(d).slice(0, 4) : ""; }

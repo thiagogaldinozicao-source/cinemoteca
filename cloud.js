@@ -1,7 +1,7 @@
 // Conta e nuvem (Supabase): login por código no e-mail e sincronização da lista.
 // A lista continua no aparelho (funciona sem internet) e vai/vem da nuvem
 // sempre que tem conexão.
-import * as store from "./store.js?v=20";
+import * as store from "./store.js?v=22";
 
 const cfg = window.CINEMOTECA_CONFIG || {};
 const URL_ = (cfg.SUPABASE_URL || "").trim().replace(/\/+$/, "");
@@ -181,6 +181,12 @@ function schedule(ms) {
   timer = setTimeout(sync, ms);
 }
 
+// Como funciona: cada mudança no aparelho marca o título como "pendente" com um
+// contador (store.touch). Aqui (1) sobe os pendentes e só limpa os que não
+// mudaram de novo durante o envio (store.ack confere o contador); depois
+// (2) baixa o que mudou na nuvem desde a última vez (updated_at é a hora do
+// servidor; volta 5s pra não perder nada no limite). O que ainda está pendente
+// aqui ganha do que veio da nuvem.
 export async function sync() {
   if (!user || !sb) return;
   if (!navigator.onLine) { online = false; setStatus("offline"); return; }
