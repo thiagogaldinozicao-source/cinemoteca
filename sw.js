@@ -1,11 +1,11 @@
 // Guarda a "casca" do app para abrir rápido e funcionar sem internet.
 // Capas dos filmes também ficam guardadas (a lista aparece bonita mesmo offline).
-const CACHE = "cinemoteca-v20";
+const CACHE = "cinemoteca-v21";
 const IMGS = "cinemoteca-capas";
 const MAX_IMGS = 600;
 const V = "?v=20";
 const SHELL = ["./", "index.html", "styles.css" + V, "app.js" + V, "tmdb.js" + V, "store.js" + V, "now.js" + V, "config.js" + V, "cloud.js" + V, "gostos.js" + V, "amigos.js" + V, "vendor/supabase.js" + V, "vendor/qrcode.js" + V,
-  "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
+  "manifest.webmanifest?v=2", "icons/favicon.svg?v=2", "icons/favicon-32.png?v=2", "icons/apple-touch-icon.png?v=2", "icons/icon-192.png?v=2", "icons/icon-512.png?v=2", "icons/icon-maskable-512.png?v=2"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -22,7 +22,7 @@
       <feDropShadow dx="0" dy="26" stdDeviation="28" flood-color="#000" flood-opacity=".55"/>
     </filter>
     <clipPath id="armclip"><rect x="222" y="270" width="580" height="122" rx="44"/></clipPath>
-    <clipPath id="bgclip"><rect width="1024" height="1024" rx="0"/></clipPath>
+    <clipPath id="bgclip"><rect width="1024" height="1024" rx="230"/></clipPath>
   </defs>
   <g clip-path="url(#bgclip)">
     <rect width="1024" height="1024" fill="url(#bg)"/>
