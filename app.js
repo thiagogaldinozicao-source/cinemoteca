@@ -1,10 +1,10 @@
-import * as tmdb from "./tmdb.js?v=24";
-import * as store from "./store.js?v=24";
-import * as now from "./now.js?v=24";
-import * as cloud from "./cloud.js?v=24";
-import * as gostos from "./gostos.js?v=24";
-import * as amigos from "./amigos.js?v=24";
-import * as som from "./sons.js?v=24";
+import * as tmdb from "./tmdb.js?v=25";
+import * as store from "./store.js?v=25";
+import * as now from "./now.js?v=25";
+import * as cloud from "./cloud.js?v=25";
+import * as gostos from "./gostos.js?v=25";
+import * as amigos from "./amigos.js?v=25";
+import * as som from "./sons.js?v=25";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -1062,7 +1062,7 @@ function carregaQr() {
   if (window.qrcode) return Promise.resolve();
   if (!qrLib) qrLib = new Promise((ok, falha) => {
     const sc = document.createElement("script");
-    sc.src = "vendor/qrcode.js?v=24"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    sc.src = "vendor/qrcode.js?v=25"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
     document.head.appendChild(sc);
   });
   return qrLib;

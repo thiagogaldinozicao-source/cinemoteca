@@ -13,6 +13,7 @@ body::before{ content:""; position:fixed; inset:0; z-index:-1; pointer-events:no
              radial-gradient(ellipse 60% 40% at 50% 110%, #7a1f2a14, transparent 70%); }
 body{ background:var(--bg); color:var(--text); font-family:'Sora',system-ui,sans-serif; min-height:100vh;
   padding-bottom:calc(76px + var(--safe-b)); -webkit-font-smoothing:antialiased; }
+html, body, button, a, .ccard, .epbtn, .stp button{ touch-action:manipulation; }
 button{ font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
 input{ font:inherit; }
 :focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
