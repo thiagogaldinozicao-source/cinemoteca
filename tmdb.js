@@ -1,6 +1,6 @@
 // Acesso à API do TMDB (https://developer.themoviedb.org) pela função "tmdb" do
 // Supabase, que guarda a chave escondida no servidor.
-import * as cloud from "./cloud.js?v=22";
+import * as cloud from "./cloud.js?v=23";
 
 const IMG = "https://image.tmdb.org/t/p/";
 const LANG = "pt-BR";
@@ -164,6 +164,8 @@ export async function details(type, id, opts) {
     seasons: type === "tv" ? d.number_of_seasons : null,
     epRuntime: type === "tv" ? epRun(d) : null,
     episodes: type === "tv" ? d.number_of_episodes : null,
+    // episódios de cada temporada (sem os "especiais", temporada 0)
+    temps: type === "tv" ? (d.seasons || []).filter(x => x.season_number > 0).sort((a, b) => a.season_number - b.season_number).map(x => x.episode_count || 0) : null,
     status: d.status || "",
     tagline: d.tagline || "",
     providers: { stream: pick(prov.flatrate), rent: pick(prov.rent), buy: pick(prov.buy), link: prov.link || "" },

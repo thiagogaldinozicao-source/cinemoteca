@@ -1,9 +1,10 @@
-import * as tmdb from "./tmdb.js?v=22";
-import * as store from "./store.js?v=22";
-import * as now from "./now.js?v=22";
-import * as cloud from "./cloud.js?v=22";
-import * as gostos from "./gostos.js?v=22";
-import * as amigos from "./amigos.js?v=22";
+import * as tmdb from "./tmdb.js?v=23";
+import * as store from "./store.js?v=23";
+import * as now from "./now.js?v=23";
+import * as cloud from "./cloud.js?v=23";
+import * as gostos from "./gostos.js?v=23";
+import * as amigos from "./amigos.js?v=23";
+import * as som from "./sons.js?v=23";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -46,7 +47,7 @@ function swipeable(card, opts) {
     setTimeout(() => { card.style.transition = ""; }, 220);
   };
   card.addEventListener("pointerdown", e => {
-    if (e.pointerType === "mouse" || e.target.closest(".quick")) return;
+    if (e.pointerType === "mouse" || e.target.closest(".quick, .epbtn")) return;
     id = e.pointerId; x0 = e.clientX; y0 = e.clientY; dx = 0; dir = null; w = card.offsetWidth;
   });
   card.addEventListener("pointermove", e => {
@@ -64,7 +65,9 @@ function swipeable(card, opts) {
     card.classList.toggle("swR", mx > 0 && !!opts.right);
     card.classList.toggle("swL", mx < 0 && !!opts.left);
     if (side) { hint.textContent = side.label; hint.className = "swhint " + (mx > 0 ? "l " : "r ") + (side.cls || ""); }
-    card.classList.toggle("swOk", !!side && Math.abs(dx) > Math.min(110, w * 0.3));
+    const ok = !!side && Math.abs(dx) > Math.min(110, w * 0.3);
+    if (ok && !card.classList.contains("swOk")) som.tique();
+    card.classList.toggle("swOk", ok);
   });
   const end = e => {
     if (e.pointerId !== id) return;
@@ -93,9 +96,9 @@ function pedirNota(m) {
     <p class="muted">Que nota vc dá?</p>
     <div class="stars">${b}</div>
     <button class="btn ghost wide" id="semNota">Agora não</button>
-  </div>`);
-  sheet.querySelectorAll("[data-n]").forEach(x => x.onclick = () => { store.setNote(m.key, +x.dataset.n); closeSheet(); toast(`★ ${x.dataset.n}/10 pra ${m.title}`); });
-  $("#semNota", sheet).onclick = closeSheet;
+  </div>`, true);
+  sheet.querySelectorAll("[data-n]").forEach(x => x.onclick = () => { som.nota(+x.dataset.n); store.setNote(m.key, +x.dataset.n); closeSheet(true); toast(`★ ${x.dataset.n}/10 pra ${m.title}`); });
+  $("#semNota", sheet).onclick = () => closeSheet();
 }
 
 function posterHTML(m, size = "w342", cls = "poster") {
@@ -131,6 +134,7 @@ function errorText(e) {
 let tab = "lista";
 function go(name) {
   if (name !== "amigos" || tab === "amigos") amigoAberto = null;
+  if (name !== tab) som.aba();
   tab = name;
   document.querySelectorAll("nav.bottom button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
   render();
@@ -310,6 +314,8 @@ function renderLista() {
   const want = items.filter(i => i.status === "want").sort(store.byQuality);
   const seen = items.filter(i => i.status === "seen").sort((a, b) => (b.seenAt || 0) - (a.seenAt || 0));
   const src = (listSeg === "want" ? want : seen).filter(i => listType === "all" || i.type === listType);
+  const vendo = listSeg === "want" && listType !== "movie"
+    ? want.filter(i => i.type === "tv" && i.prog).sort((a, b) => (b.prog.at || 0) - (a.prog.at || 0)) : [];
 
   if (!items.length) {
     view.innerHTML = `
@@ -334,10 +340,17 @@ function renderLista() {
       ${[["all", "Tudo"], ["movie", "Filmes"], ["tv", "Séries"]].map(([k, l]) => `<button class="chip ${listType === k ? "on" : ""}" data-type="${k}">${l}</button>`).join("")}
     </div>
     </div>
+    ${vendo.length ? continuarHTML(vendo) : ""}
     ${src.length ? `<ol class="queue">${src.map((m, k) => rowHTML(m, k, src.length)).join("")}</ol>`
       : `<p class="muted center pad">${listSeg === "want" ? "Nada aqui nesse filtro." : "Quando marcar algo como visto, aparece aqui."}</p>`}
   `;
   const nb = $("#nowBtn"); if (nb) nb.onclick = openNow;
+  view.querySelectorAll("[data-ep]").forEach(b => b.onclick = e => { e.stopPropagation(); avancaEp(b.dataset.ep); });
+  view.querySelectorAll("[data-cont]").forEach(c => c.onclick = () => { const it = store.get(c.dataset.cont); if (it) openDetails(it); });
+  if (bumpKey) {
+    view.querySelectorAll("[data-pkey]").forEach(el => { if (el.dataset.pkey === bumpKey) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); } });
+    bumpKey = null;
+  }
   view.querySelectorAll("[data-seg]").forEach(b => b.onclick = () => { listSeg = b.dataset.seg; renderLista(); });
   view.querySelectorAll("[data-type]").forEach(b => b.onclick = () => { listType = b.dataset.type; renderLista(); });
   view.querySelectorAll(".row").forEach(r => {
@@ -349,13 +362,13 @@ function renderLista() {
     swipeable(r, {
       right: listSeg === "want" ? { label: "✓ Já vi", cls: "ok", fn: () => {
         const it = store.get(key); if (!it) return;
-        store.setStatus(key, "seen"); pedirNota(it);
+        som.visto(); store.setStatus(key, "seen"); pedirNota(it);
       } } : null,
       left: { label: "Tirar 🗑", cls: "bad", fn: () => {
         const it = store.get(key); if (!it) return;
         const copia = JSON.parse(JSON.stringify(it));
-        store.remove(key);
-        toast(`${it.title} saiu da lista`, "Desfazer", () => { store.restore(copia); toast("Voltou pra lista"); });
+        som.tirar(); store.remove(key);
+        toast(`${it.title} saiu da lista`, "Desfazer", () => { som.desfazer(); store.restore(copia); toast("Voltou pra lista"); });
       } },
     });
   });
@@ -370,9 +383,138 @@ function rowHTML(m, k, n) {
         <div class="rtitle">${esc(m.title)}</div>
         <div class="rmeta">${typeLabel(m.type)}${m.year ? " · " + esc(m.year) : ""}${m.note ? ` · <span class="mine">★ ${m.note}/10</span>` : ""}</div>
         ${m.memo ? `<div class="rmemo">📝 ${esc(m.memo)}</div>` : ""}
-        ${verdictHTML(m)}
+        ${m.type === "tv" && !seen ? epLineHTML(m) : verdictHTML(m)}
       </div>
     </li>`;
+}
+
+// ---------- SÉRIES: ONDE PAREI ----------
+// prog = { s: temporada, e: último episódio visto }. temps = quantos episódios cada temporada tem (vem do TMDB).
+let bumpKey = null;
+const progTxt = p => (p.e ? `T${p.s} · E${p.e}` : `T${p.s} · começar`);
+function emDia(m) {
+  const p = m.prog, t = m.temps || [];
+  return !!(p && t.length && p.s >= t.length && t[p.s - 1] && p.e >= t[p.s - 1]);
+}
+function proxTxt(m) {
+  const p = m.prog || { s: 1, e: 0 };
+  return emDia(m) ? "✓ Tá em dia" : `Próximo: T${p.s} E${p.e + 1}`;
+}
+function progPct(m) {
+  const p = m.prog, t = m.temps;
+  if (!p || !t || !t[p.s - 1]) return null;
+  return Math.min(1, p.e / t[p.s - 1]);
+}
+function totalVisto(m) {
+  const p = m.prog, t = m.temps;
+  if (!p || !t || !t.length) return null;
+  let n = 0;
+  for (let i = 0; i < p.s - 1; i++) n += t[i] || 0;
+  return { n: n + p.e, tot: t.reduce((a, b) => a + b, 0) };
+}
+function barHTML(m, cls = "") {
+  const pct = progPct(m);
+  return pct == null ? "" : `<span class="epbar ${cls}"><i style="width:${Math.round(pct * 100)}%"></i></span>`;
+}
+function epLineHTML(m) {
+  const k = esc(m.key);
+  if (!m.prog) return `<div class="epline">${verdictHTML(m)}<button class="epbtn st" data-ep="${k}" aria-label="Comecei a ver ${esc(m.title)}">▶ Comecei</button></div>`;
+  return `<div class="epline"><span class="eppill" data-pkey="${k}">▶ ${progTxt(m.prog)}</span>${barHTML(m)}
+    ${emDia(m) ? "" : `<button class="epbtn" data-ep="${k}" aria-label="Vi mais um episódio de ${esc(m.title)}">+1</button>`}</div>`;
+}
+function continuarHTML(lista) {
+  return `<section class="cont">
+    <div class="lbl">▶ Continuar vendo</div>
+    <div class="controw">${lista.map(m => `
+      <div class="ccard" data-cont="${esc(m.key)}" role="button" tabindex="0">
+        <div class="cpwrap">${posterHTML(m, "w342", "cposter")}${barHTML(m, "onposter")}
+          ${emDia(m) ? "" : `<button class="epbtn round" data-ep="${esc(m.key)}" aria-label="Vi mais um episódio de ${esc(m.title)}">+1</button>`}</div>
+        <b>${esc(m.title)}</b>
+        <span class="cprox" data-pkey="${esc(m.key)}">${esc(proxTxt(m))}</span>
+      </div>`).join("")}</div>
+  </section>`;
+}
+function ondePareiHTML(m) {
+  const p = m.prog || { s: 1, e: 0 }, t = m.temps || [], nT = t[p.s - 1], tv = totalVisto(m);
+  const info = [nT ? `A T${p.s} tem ${nT} episódio${nT > 1 ? "s" : ""}` : "",
+    tv && tv.tot ? `${tv.n} de ${tv.tot} no total` : ""].filter(Boolean).join(" · ");
+  return `<div class="lbl">Onde parei</div>
+    <div class="prog ${emDia(m) ? "emdia" : ""}">
+      <div class="pstep"><span>Temporada</span><div class="stp">
+        <button data-pg="s-" aria-label="Temporada anterior" ${p.s <= 1 ? "disabled" : ""}>−</button><b>${p.s}</b>
+        <button data-pg="s+" aria-label="Próxima temporada" ${t.length && p.s >= t.length ? "disabled" : ""}>+</button></div></div>
+      <div class="pstep"><span>Episódio</span><div class="stp">
+        <button data-pg="e-" aria-label="Episódio anterior" ${p.e <= 0 ? "disabled" : ""}>−</button><b class="${m.prog ? "" : "dim"}">${p.e || "–"}</b>
+        <button data-pg="e+" class="mais" aria-label="Vi mais um episódio">+</button></div></div>
+    </div>
+    ${barHTML(m, "big")}
+    <p class="tiny">${emDia(m) ? "🏆 Você tá em dia com a série!" : info || (m.prog ? `Próximo: T${p.s} E${p.e + 1}` : "Toca no + quando terminar um episódio")}</p>`;
+}
+function mexeProg(m, op) {
+  const it = store.get(m.key); if (!it) return;
+  const t = it.temps || [];
+  const p = it.prog || { s: 1, e: 0 };
+  if (op === "e+") avancaEp(m.key);
+  else if (op === "e-") { som.desfazer(); store.setProg(m.key, { s: p.s, e: Math.max(0, p.e - 1) }); }
+  else if (op === "s+") { som.aba(); store.setProg(m.key, { s: t.length ? Math.min(t.length, p.s + 1) : p.s + 1, e: 0 }); }
+  else if (op === "s-") { som.aba(); const s2 = Math.max(1, p.s - 1); store.setProg(m.key, { s: s2, e: t[s2 - 1] ? Math.min(p.e, t[s2 - 1]) : p.e }); }
+  refreshSheet(m);
+  const bs = sheet.querySelectorAll(".stp b");
+  const alvo = bs[op[0] === "s" ? 0 : 1]; if (alvo) alvo.classList.add("bump");
+}
+const buscandoTemps = new Set();
+function buscaTemps(it) {
+  if (!it || buscandoTemps.has(it.key) || !tmdb.ready() || !navigator.onLine) return;
+  buscandoTemps.add(it.key);
+  tmdb.details(it.type, it.id).then(d => {
+    if (store.get(it.key)) store.setMeta(it.key, { runtime: d.runtime, epRuntime: d.epRuntime, genreIds: d.genreIds, temps: d.temps });
+  }).catch(() => buscandoTemps.delete(it.key));
+}
+function avancaEp(key) {
+  const it = store.get(key); if (!it) return;
+  const t = it.temps || [];
+  const comecou = !it.prog;
+  let { s, e } = it.prog || { s: 1, e: 0 };
+  e++;
+  const nT = t[s - 1];
+  bumpKey = key;
+  if (nT && e >= nT) {
+    if (s < t.length) {
+      som.temporada(); festa(["🎉", "🍿", "✨"]);
+      store.setProg(key, { s: s + 1, e: 0 });
+      toast(`🎉 Fechou a temporada ${s}! Bora pra T${s + 1}`);
+    } else {
+      som.fim(); festa(["🏆", "🎉", "🍿", "✨", "🎬"], 34);
+      store.setProg(key, { s, e: nT });
+      toast(`🏆 Terminou ${it.title}!`, "Marcar visto", () => {
+        som.visto(); store.setStatus(key, "seen"); const x = store.get(key); if (x) pedirNota(x);
+      });
+    }
+  } else {
+    som.ep();
+    store.setProg(key, { s, e });
+    if (comecou) toast(`▶ Começou ${it.title}! Toca no +1 a cada episódio`);
+  }
+  if (!t.length) buscaTemps(it);
+}
+// Chuvinha de emoji (fechou temporada / terminou série).
+function festa(emojis, n = 22) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const box = document.createElement("div");
+  box.className = "festa"; box.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < n; i++) {
+    const sp = document.createElement("span");
+    sp.textContent = emojis[i % emojis.length];
+    const ang = Math.random() * Math.PI * 2, dist = 90 + Math.random() * 170;
+    sp.style.setProperty("--x", Math.cos(ang) * dist + "px");
+    sp.style.setProperty("--y", Math.sin(ang) * dist - 80 + "px");
+    sp.style.setProperty("--r", (Math.random() * 360 - 180) + "deg");
+    sp.style.animationDelay = Math.random() * 0.12 + "s";
+    sp.style.fontSize = 18 + Math.random() * 16 + "px";
+    box.appendChild(sp);
+  }
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 1700);
 }
 
 // ---------- BUSCAR ----------
@@ -440,6 +582,7 @@ async function runSearch() {
     box.querySelectorAll(".res").forEach(el => {
       const m = all.find(x => x.key === el.dataset.key);
       const marcar = (status, msg) => {
+        if (status === "seen") som.visto(); else som.salvar();
         if (store.get(m.key)) store.setStatus(m.key, status); else store.add(m, status);
         const q = el.querySelector(".quick");
         if (q) { q.textContent = status === "seen" ? "✓ Visto" : "✓ Na lista"; q.classList.add("done"); q.disabled = true; }
@@ -478,7 +621,8 @@ function resultHTML(m) {
 }
 function quickAdd(m, el) {
   if (store.get(m.key)) return;
-  if (!store.add(m, "want")) { toast("Não consegui salvar no aparelho."); return; }
+  if (!store.add(m, "want")) { som.erro(); toast("Não consegui salvar no aparelho."); return; }
+  som.salvar();
   const b = el.querySelector(".quick");
   b.textContent = "✓ Na lista"; b.classList.add("done"); b.disabled = true;
   toast(`${m.title} entrou em Quero ver`);
@@ -489,19 +633,21 @@ let detailsCtl = null;
 let sheetToken = 0;
 // Topo da folha de baixo (alça + botão fechar).
 const SHEET_TOP = `<div class="grab"></div><div class="closebar"><button class="close" aria-label="Fechar">×</button></div>`;
-function openSheet(html) {
+function openSheet(html, mudo) {
+  if (!mudo && !document.body.classList.contains("sheet-open")) som.abre();
   sheetToken++;
   sheet.innerHTML = `${SHEET_TOP}${html}`;
   sheet.scrollTop = 0;
   document.body.classList.add("sheet-open");
-  $(".close", sheet).onclick = closeSheet;
+  $(".close", sheet).onclick = () => closeSheet();
 }
-function closeSheet() {
+function closeSheet(mudo) {
+  if (mudo !== true && document.body.classList.contains("sheet-open")) som.fecha();
   tutoAberto = false;
   if (detailsCtl) { detailsCtl.abort(); detailsCtl = null; }
   document.body.classList.remove("sheet-open");
 }
-sheetBg.onclick = closeSheet;
+sheetBg.onclick = () => closeSheet();
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") closeSheet();
   // No computador: "/" abre a busca.
@@ -521,10 +667,10 @@ async function openDetails(m) {
   try {
     const d = await tmdb.details(m.type, m.id, { signal: ctl.signal });
     if (ctl !== detailsCtl || !document.body.classList.contains("sheet-open")) return;
-    if (store.get(d.key)) store.setMeta(d.key, { runtime: d.runtime, epRuntime: d.epRuntime, genreIds: d.genreIds });
+    if (store.get(d.key)) store.setMeta(d.key, { runtime: d.runtime, epRuntime: d.epRuntime, genreIds: d.genreIds, temps: d.temps });
     const top = sheet.scrollTop;
     sheet.innerHTML = `${SHEET_TOP}${detailsHTML(d, d)}`;
-    $(".close", sheet).onclick = closeSheet;
+    $(".close", sheet).onclick = () => closeSheet();
     sheet.scrollTop = top;
     wireDetails(d);
   } catch (e) {
@@ -573,6 +719,7 @@ function detailsHTML(m, d) {
       ${cloud.enabled && cloud.currentUser() && m.id ? `<button class="btn ghost wide indbtn" data-ind>👥 Indicar pra um amigo</button>` : ""}
       ${saved ? `<div class="lbl">Sua anotação</div>
         <textarea class="memo" id="memo" rows="2" maxlength="300" placeholder="Quem indicou, onde viu, com quem quer ver…">${esc(saved.memo || "")}</textarea>` : ""}
+      ${saved && saved.type === "tv" && (saved.status === "want" || saved.prog) ? ondePareiHTML(saved) : ""}
       ${stars ? `<div class="lbl">Sua nota${saved.note ? " — " + saved.note + "/10" : ""}</div><div class="stars">${stars}</div>` : ""}
       ${d && d.genres.length ? `<div class="tags">${d.genres.map(g => `<span class="tag">${esc(g)}</span>`).join("")}</div>` : ""}
       ${m.overview ? `<div class="lbl">Sinopse${m.overviewLang === "en" ? " <span class=\"lang\">(só tem em inglês)</span>" : ""}</div><p class="syn">${esc(m.overview)}</p>` : (d ? `<p class="muted">Ainda não tem sinopse cadastrada.</p>` : "")}
@@ -700,19 +847,23 @@ function wireDetails(m) {
     const act = b.dataset.act;
     const saved = store.get(m.key);
     let ok = true;
+    if (act === "want") som.salvar();
+    if (act === "seen") som.visto();
     if (act === "want") { ok = saved ? store.setStatus(m.key, "want") : store.add(m, "want"); if (ok) toast("Salvo em Quero ver. Quer anotar quem indicou?"); }
     if (act === "seen") { ok = saved ? store.setStatus(m.key, "seen") : store.add(m, "seen"); if (ok) toast("Marcado como visto. Dá uma nota!"); }
     if (act === "remove") {
       if (!confirm(`Tirar ${m.title} da sua lista?`)) return;
-      ok = store.remove(m.key); if (ok) toast("Tirado da lista");
+      ok = store.remove(m.key); if (ok) { som.tirar(); toast("Tirado da lista"); }
     }
-    if (!ok) { toast("Não consegui salvar no aparelho."); return; }
+    if (!ok) { som.erro(); toast("Não consegui salvar no aparelho."); return; }
     refreshSheet(m);
     if (tab === "buscar") runSearch();
   });
+  sheet.querySelectorAll("[data-pg]").forEach(b => b.onclick = () => mexeProg(m, b.dataset.pg));
   sheet.querySelectorAll("[data-note]").forEach(b => b.onclick = () => {
     const k = +b.dataset.note;
     const saved = store.get(m.key);
+    if (saved && saved.note === k) som.desfazer(); else som.nota(k);
     store.setNote(m.key, saved && saved.note === k ? 0 : k);
     refreshSheet(m);
   });
@@ -743,7 +894,7 @@ function refreshSheet(m) {
   const top = sheet.scrollTop;
   const d = m.providers ? m : null;
   sheet.innerHTML = `${SHEET_TOP}${detailsHTML(m, d)}`;
-  $(".close", sheet).onclick = closeSheet;
+  $(".close", sheet).onclick = () => closeSheet();
   sheet.scrollTop = top;
   wireDetails(m);
 }
@@ -875,6 +1026,7 @@ function aceitarInd(i) {
   const it = store.get(i.key);
   if (it && !it.memo) store.setMemo(i.key, `Indicação de ${i.nome}${i.msg ? ": " + i.msg : ""}`.slice(0, 300));
   amigos.aceitar(i);
+  som.salvar();
   toast(`${i.data.title} foi pro Quero ver 🍿`);
 }
 // Nos detalhes: quem te indicou este título.
@@ -899,7 +1051,7 @@ function carregaQr() {
   if (window.qrcode) return Promise.resolve();
   if (!qrLib) qrLib = new Promise((ok, falha) => {
     const sc = document.createElement("script");
-    sc.src = "vendor/qrcode.js?v=22"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    sc.src = "vendor/qrcode.js?v=23"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
     document.head.appendChild(sc);
   });
   return qrLib;
@@ -1157,10 +1309,11 @@ function sheetIndicar(m) {
     try {
       await amigos.indicar([...sel], m, $("#recado", sheet).value.trim());
       const nomes = lista.filter(a => sel.has(a.user_id)).map(a => a.nome.split(" ")[0]);
+      som.enviar();
       openDetails(m);
       toast(`Indicação enviada pra ${nomes.length > 2 ? nomes.length + " amigos" : nomes.join(" e ")} 🍿`);
     } catch (err) {
-      btn.disabled = false; btn.textContent = "🍿 Mandar indicação";
+      btn.disabled = false; btn.textContent = "🍿 Mandar indicação"; som.erro();
       toast(navigator.onLine ? "Não consegui mandar agora. Tenta de novo." : "Sem internet pra mandar agora.");
     }
   };
@@ -1189,6 +1342,7 @@ function sortear() {
   const m = resta[Math.floor(Math.random() * resta.length)];
   feitos.push(m.key); reg[ch] = feitos; salvaSorteados(reg);
   const faltam = pool.length - feitos.length;
+  som.dado();
   openSheet(`
     <div class="nowhead"><div class="lbl">🎲 Sorteio · ${esc(nomeSeg)} · ${esc(nome)}</div><h2>Deu esse!</h2></div>
     <div class="dbody">
@@ -1207,7 +1361,8 @@ function sortear() {
         <button class="btn" id="sNext">🎲 Sortear outro</button>
       </div>
       <p class="tiny center">${pool.length === 1 ? `Só tem esse em ${esc(nomeSeg)}` : faltam ? `Faltam ${faltam} de ${pool.length} sem repetir` : `Esse era o último dos ${pool.length}. O próximo recomeça do zero`}</p>
-    </div>`);
+    </div>`, true);
+  const nc = $(".nowcard", sheet); if (nc) nc.classList.add("rola");
   $("#sOpen", sheet).onclick = () => openDetails(m);
   $("#sNext", sheet).onclick = sortear;
 }
@@ -1296,6 +1451,13 @@ function renderAjustes() {
       <button class="btn wide" id="editG">🍿 ${gostos.get() && gostos.get().generos && gostos.get().generos.length ? "Mudar meus gostos" : "Escolher meus gostos"}</button>
     </div>
 
+    <div class="card">
+      <div class="lbl">Sons e vibração</div>
+      <button class="tgl" id="tSom" role="switch" aria-checked="${som.ligado()}"><span>🔊 Sons do app</span><i></i></button>
+      <button class="tgl" id="tVib" role="switch" aria-checked="${som.vibraLigado()}"><span>📳 Vibração (iPhone com iOS 18+)</span><i></i></button>
+      <p class="muted small">Se o iPhone tiver no silencioso, o app fica quieto também.</p>
+    </div>
+
 
     <div class="card">
       <div class="lbl">Sua lista (${n} ${n === 1 ? "título" : "títulos"})</div>
@@ -1320,6 +1482,8 @@ function renderAjustes() {
 
     <p class="tiny center">Este produto usa a API do TMDB, mas não é endossado nem certificado pelo TMDB.<br>Dados de onde assistir fornecidos pela JustWatch.</p>
   `;
+  $("#tSom").onclick = e => { const v = !som.ligado(); som.liga("som", v); e.currentTarget.setAttribute("aria-checked", v); if (v) som.teste(); };
+  $("#tVib").onclick = e => { const v = !som.vibraLigado(); som.liga("vibra", v); e.currentTarget.setAttribute("aria-checked", v); if (v) som.tique(); };
   $("#editG").onclick = editarGostos;
   $("#verTuto").onclick = () => mostrarTutorial(true);
   const sn = $("#syncNow"); if (sn) sn.onclick = () => { cloud.sync(); toast("Sincronizando…"); };

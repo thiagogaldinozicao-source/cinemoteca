@@ -107,6 +107,7 @@ export function mergeIn(items) {
     let upd = false;
     if (!cur.memo && v.memo) { cur.memo = v.memo; upd = true; }
     if (!cur.note && v.note) { cur.note = v.note; upd = true; }
+    if (!cur.prog && v.prog) { cur.prog = limpaProg(v.prog); upd = !!cur.prog || upd; }
     if (cur.status === "want" && v.status === "seen") { cur.status = "seen"; cur.seenAt = v.seenAt || Date.now(); upd = true; }
     if (upd) touch(k);
   }
@@ -129,7 +130,16 @@ export function limpa(m) {
     vote: num(m.vote), votes: num(m.votes) || 0, note: num(m.note) || 0,
     memo: m.memo ? String(m.memo).slice(0, 300) : "",
     genreIds: Array.isArray(m.genreIds) ? m.genreIds.map(Number).filter(isFinite) : [],
+    prog: limpaProg(m.prog),
+    temps: Array.isArray(m.temps) ? m.temps.slice(0, 80).map(n => Math.max(0, Math.min(999, Math.round(+n) || 0))) : undefined,
   };
+}
+// Onde parou na série: { s: temporada, e: último episódio visto, at: quando }.
+function limpaProg(p) {
+  if (!p || typeof p !== "object") return null;
+  const s = Math.round(+p.s), e = Math.round(+p.e);
+  if (!isFinite(s) || !isFinite(e) || s < 1 || s > 99 || e < 0 || e > 999) return null;
+  return { s, e, at: isFinite(+p.at) ? +p.at : 0 };
 }
 // Guarda só o essencial para mostrar a lista sem internet.
 function slim(m0) {
@@ -140,6 +150,7 @@ function slim(m0) {
     ...(m.genreIds && m.genreIds.length ? { genreIds: m.genreIds.slice(0, 6) } : {}),
     ...(m.runtime ? { runtime: m.runtime } : {}),
     ...(m.epRuntime ? { epRuntime: m.epRuntime } : {}),
+    ...(m.temps && m.temps.length ? { temps: m.temps } : {}),
   };
 }
 
@@ -168,6 +179,14 @@ export function setStatus(key, status) {
 export function setNote(key, note) {
   const it = state.items[key]; if (!it) return false;
   it.note = note;
+  touch(key);
+  return changed();
+}
+// Série: em que temporada/episódio parou. null apaga.
+export function setProg(key, prog) {
+  const it = state.items[key]; if (!it) return false;
+  const p = prog ? limpaProg({ ...prog, at: Date.now() }) : null;
+  if (p && p.s === 1 && p.e === 0) it.prog = null; else it.prog = p;
   touch(key);
   return changed();
 }
@@ -225,11 +244,13 @@ export function addImported(media, { status = "want", memo = "", note = 0 } = {}
 export function setMeta(key, meta, save = true) {
   const it = state.items[key]; if (!it) return false;
   const same = it.metaAt && (!meta.runtime || meta.runtime === it.runtime) && (!meta.epRuntime || meta.epRuntime === it.epRuntime)
-    && (!meta.genreIds || !meta.genreIds.length || meta.genreIds.slice(0, 6).join() === (it.genreIds || []).join());
+    && (!meta.genreIds || !meta.genreIds.length || meta.genreIds.slice(0, 6).join() === (it.genreIds || []).join())
+    && (!meta.temps || !meta.temps.length || meta.temps.join() === (it.temps || []).join());
   if (same) return true;
   if (meta.runtime) it.runtime = meta.runtime;
   if (meta.epRuntime) it.epRuntime = meta.epRuntime;
   if (meta.genreIds && meta.genreIds.length) it.genreIds = meta.genreIds.slice(0, 6);
+  if (meta.temps && meta.temps.length) it.temps = limpa({ temps: meta.temps }).temps;
   it.metaAt = Date.now();
   touch(key);
   if (!save) return true;

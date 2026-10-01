@@ -375,3 +375,72 @@ nav.bottom button{ position:relative; }
 .qr{ background:#fff; border-radius:18px; padding:10px; width:min(260px,72vw); aspect-ratio:1; margin:14px auto 12px; display:flex; align-items:center; justify-content:center; }
 .qr svg{ width:100%; height:100%; display:block; }
 .qr .muted{ color:#555; }
+
+/* ---------- séries: onde parei ---------- */
+.epline{ display:flex; align-items:center; gap:8px; flex-wrap:nowrap; min-width:0; }
+.eppill{ font-size:11.5px; font-weight:700; color:var(--purple); background:#a78bfa1f; padding:3px 9px; border-radius:100px; white-space:nowrap; }
+.epbar{ flex:1; min-width:28px; max-width:110px; height:4px; border-radius:4px; background:#ffffff14; overflow:hidden; }
+.epbar i{ display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--purple),var(--gold)); transition:width .35s cubic-bezier(.2,.9,.3,1.3); }
+.epbtn{ margin-left:auto; flex-shrink:0; min-width:40px; height:30px; padding:0 11px; border-radius:100px; background:var(--purple); color:#160b33;
+  font-weight:800; font-size:13px; box-shadow:0 4px 14px #a78bfa40; transition:transform .12s; }
+.epbtn:active{ transform:scale(.88); }
+.epbtn.st{ background:#a78bfa1f; color:var(--purple); box-shadow:none; font-size:12px; font-weight:700; }
+.epline .verd{ flex-shrink:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bump{ animation:bump .42s cubic-bezier(.3,1.6,.5,1); }
+@keyframes bump{ 0%{ transform:scale(1); } 35%{ transform:scale(1.25); filter:brightness(1.4); } 100%{ transform:scale(1); } }
+
+/* continuar vendo */
+.cont{ margin:4px 0 14px; }
+.cont .lbl{ margin:6px 0 10px; color:var(--purple); }
+.controw{ display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; margin:0 -16px; padding:2px 16px 6px; scrollbar-width:none; }
+.controw::-webkit-scrollbar{ display:none; }
+.ccard{ flex:0 0 112px; scroll-snap-align:start; display:flex; flex-direction:column; gap:4px; cursor:pointer; }
+.ccard b{ font-size:12.5px; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:4px; }
+.cprox{ font-size:11px; color:var(--dim); display:inline-block; transform-origin:left center; }
+.cpwrap{ position:relative; border-radius:12px; box-shadow:0 8px 22px #0009; }
+.cposter{ width:112px; height:168px; border-radius:12px; object-fit:cover; display:block; background:#222; }
+.cposter.noimg{ display:flex; align-items:center; justify-content:center; padding:8px; text-align:center; font-size:12px; color:var(--dim); }
+.cpwrap::after{ content:""; position:absolute; inset:auto 0 0 0; height:56px; border-radius:0 0 12px 12px; pointer-events:none;
+  background:linear-gradient(180deg,#0000,#000c); }
+.epbar.onposter{ position:absolute; left:8px; right:8px; bottom:8px; max-width:none; z-index:1; height:3px; background:#ffffff30; }
+.epbtn.round{ position:absolute; right:-6px; top:-6px; z-index:2; width:38px; height:38px; min-width:0; padding:0; border:3px solid var(--bg); }
+.ccard:active .cpwrap{ transform:scale(.97); }
+.cpwrap{ transition:transform .15s; }
+
+/* detalhes: stepper */
+.prog{ display:flex; gap:10px; }
+.pstep{ flex:1; background:var(--card2); border:1px solid var(--line); border-radius:14px; padding:10px 12px; }
+.pstep > span{ font-size:11px; color:var(--dim); display:block; margin-bottom:6px; }
+.stp{ display:flex; align-items:center; justify-content:space-between; }
+.stp b{ font-family:'Bebas Neue',sans-serif; font-size:30px; font-weight:400; line-height:1; min-width:36px; text-align:center; display:inline-block; }
+.stp b.dim{ color:var(--dim); }
+.stp button{ width:36px; height:36px; border-radius:50%; background:#ffffff10; font-size:20px; font-weight:600; transition:transform .12s; }
+.stp button:active{ transform:scale(.86); }
+.stp button.mais{ background:var(--purple); color:#160b33; box-shadow:0 4px 14px #a78bfa40; }
+.stp button[disabled]{ opacity:.3; }
+.epbar.big{ display:block; max-width:none; height:6px; margin:12px 0 6px; }
+.prog.emdia .pstep{ border-color:#e5b56755; background:linear-gradient(135deg,#e5b5671a,var(--card2)); }
+
+/* chuvinha de emoji */
+.festa{ position:fixed; left:50%; top:45%; z-index:80; pointer-events:none; }
+.festa span{ position:absolute; left:0; top:0; opacity:0; animation:festa 1.3s cubic-bezier(.15,.8,.35,1) forwards; }
+@keyframes festa{
+  0%{ opacity:0; transform:translate(-50%,-50%) scale(.3); }
+  15%{ opacity:1; }
+  70%{ opacity:1; }
+  100%{ opacity:0; transform:translate(calc(-50% + var(--x)), calc(-50% + var(--y) + 120px)) rotate(var(--r)) scale(1); }
+}
+
+/* dado: card do sorteio entra girando */
+.nowcard.rola .dposter{ animation:rola .6s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes rola{ 0%{ transform:rotate(-14deg) scale(.6); opacity:0; } 60%{ transform:rotate(4deg) scale(1.04); opacity:1; } 100%{ transform:none; } }
+
+/* ajustes: interruptor */
+.tgl{ display:flex; width:100%; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; font-size:14.5px; text-align:left; }
+.tgl + .tgl{ border-top:1px solid var(--line); }
+.tgl i{ flex-shrink:0; width:46px; height:28px; border-radius:100px; background:#ffffff1c; position:relative; transition:background .2s; }
+.tgl i::after{ content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:#fff; transition:transform .22s cubic-bezier(.3,1.4,.5,1); box-shadow:0 2px 6px #0006; }
+.tgl[aria-checked="true"] i{ background:var(--green); }
+.tgl[aria-checked="true"] i::after{ transform:translateX(18px); }
+
+@media (prefers-reduced-motion: reduce){ .bump, .nowcard.rola .dposter{ animation:none; } }

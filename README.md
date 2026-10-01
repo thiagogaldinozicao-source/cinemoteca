@@ -34,6 +34,7 @@ e abre http://localhost:8000. Usa o mesmo Supabase do site (login por código no
 | "O que ver agora?" (dia, hora, duração) | `now.js` |
 | Gêneros e "Pra você" | `gostos.js` |
 | Amigos, convites, indicações | `amigos.js` + `supabase/amigos.sql` |
+| Sons e vibração | `sons.js` |
 | Abrir sem internet, cache | `sw.js` |
 | Endereço e chave pública do Supabase | `config.js` |
 
