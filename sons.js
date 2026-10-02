@@ -214,6 +214,27 @@ export function entrou() { // login deu certo
   marca(); vib(2);
   [523.25, 783.99, 1046.5].forEach((f, i) => tom(f, { t: i * 0.08, dur: 0.5, vol: 0.08, fx: true }));
 }
+// ---------- conversa ----------
+// Vinheta da Cinemoteca: 5 notas no ritmo de "Ci-ne-mo-te-CA" (curta-curta-curta-curta-longa).
+// Toca quando chega mensagem ou indicação com o app aberto.
+export function vinheta() {
+  marca(); vib(2);
+  const n = [[659.25, 0], [783.99, 0.1], [1046.5, 0.2], [987.77, 0.3], [1318.51, 0.42]];
+  n.forEach(([f, t], i) => {
+    const ult = i === n.length - 1;
+    tom(f, { t, dur: ult ? 0.7 : 0.16, vol: ult ? 0.1 : 0.085, tipo: "triangle", fx: ult });
+    tom(f * 2, { t, dur: ult ? 0.35 : 0.08, vol: 0.018 });
+  });
+  tom(523.25, { t: 0.42, dur: 0.7, vol: 0.05, fx: true }); // base quentinha embaixo da última
+}
+// chegou mensagem com a conversa aberta: bolhinha discreta
+export function bolha() { marca(); tom(700, { dur: 0.09, vol: 0.08, ate: 1100 }); tom(1400, { t: 0.05, dur: 0.06, vol: 0.025 }); }
+// mandou mensagem: "fuip" curtinho subindo
+export function enviada() { marca(); vib(); sopro({ dur: 0.14, de: 900, ate: 3400, vol: 0.035, q: 0.9 }); tom(880, { dur: 0.08, vol: 0.06, ate: 1320 }); }
+// mandou um card de filme no chat
+export function card() { marca(); vib(); estalo(0, 2600, 0.08); tom(659.25, { t: 0.03, dur: 0.12, vol: 0.07 }); tom(987.77, { t: 0.1, dur: 0.22, vol: 0.07, fx: true }); }
+// avisos ligados
+export function sino() { marca(); vib(2); [1567.98, 1318.51, 1567.98].forEach((f, i) => tom(f, { t: i * 0.12, dur: 0.5, vol: 0.06, fx: true })); }
 export function apagaTudo() { marca(); vib(2); tom(330, { dur: 0.5, vol: 0.12, ate: 80, tipo: "triangle" }); sopro({ dur: 0.5, de: 2000, ate: 200, vol: 0.05 }); }
 
 // Clique em qualquer botão que não tem som próprio: um "tic" bem baixinho.

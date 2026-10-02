@@ -9,5 +9,7 @@
 // do TMDB. A do TMDB fica escondida no servidor (segredo TMDB_KEY da função).
 window.CINEMOTECA_CONFIG = {
   SUPABASE_URL: "https://tcdsohxqqpktanfklpgi.supabase.co",
-  SUPABASE_KEY: "sb_publishable_8kjom4laQuSN_9qCkIoZQg_HAZCgvdd"
+  SUPABASE_KEY: "sb_publishable_8kjom4laQuSN_9qCkIoZQg_HAZCgvdd",
+  // Chave PÚBLICA dos avisos no celular (a privada fica no Vault do Supabase).
+  VAPID_PUBLIC: "BDXE2LGkDk85y-uCpU4MPP0IsK_j3Wtgm1zGv5xOiV0v7aqjgPnhxtBBwP7dUfOKZoVDBq706QIc67LMzEp4Q6o"
 };

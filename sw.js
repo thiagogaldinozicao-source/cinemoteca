@@ -1,11 +1,11 @@
 // Guarda a "casca" do app para abrir rápido e funcionar sem internet.
 // Capas dos filmes também ficam guardadas (a lista aparece bonita mesmo offline).
-const CACHE = "cinemoteca-v26";
+const CACHE = "cinemoteca-v27";
 const IMGS = "cinemoteca-capas";
 const FONTES = "cinemoteca-fontes";
 const MAX_IMGS = 600;
-const V = "?v=26";
-const SHELL = ["./", "index.html", "styles.css" + V, "app.js" + V, "tmdb.js" + V, "store.js" + V, "now.js" + V, "config.js" + V, "cloud.js" + V, "gostos.js" + V, "amigos.js" + V, "sons.js" + V, "vendor/supabase.js" + V, "vendor/qrcode.js" + V,
+const V = "?v=27";
+const SHELL = ["./", "index.html", "styles.css" + V, "app.js" + V, "tmdb.js" + V, "store.js" + V, "now.js" + V, "config.js" + V, "cloud.js" + V, "gostos.js" + V, "amigos.js" + V, "sons.js" + V, "chat.js" + V, "push.js" + V, "vendor/supabase.js" + V, "vendor/qrcode.js" + V,
   "manifest.webmanifest?v=2", "icons/favicon.svg?v=2", "icons/favicon-32.png?v=2", "icons/apple-touch-icon.png?v=2", "icons/icon-192.png?v=2", "icons/icon-512.png?v=2", "icons/icon-maskable-512.png?v=2"];
 
 self.addEventListener("install", e => {
@@ -81,4 +81,35 @@ self.addEventListener("fetch", e => {
   if (url.searchParams.has("v")) { e.respondWith(cacheFirst(e.request, CACHE)); return; }
   // A página em si sempre confere a rede (é ela que traz os ?v= novos).
   e.respondWith(networkFirst(e.request, 2000));
+});
+
+// ---------- avisos (notificação) ----------
+// Chega do servidor (função "push"): { title, body, url, tag, img, badge }.
+self.addEventListener("push", e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: "Cinemoteca", body: e.data ? e.data.text() : "" }; }
+  const tarefas = [self.registration.showNotification(d.title || "Cinemoteca 🍿", {
+    body: d.body || "", tag: d.tag || undefined, renotify: !!d.tag,
+    icon: "icons/icon-192.png?v=2", badge: "icons/icon-192.png?v=2",
+    image: d.img || undefined, data: { url: d.url || "./" },
+  })];
+  if (typeof d.badge === "number" && self.navigator.setAppBadge) tarefas.push(d.badge > 0 ? self.navigator.setAppBadge(d.badge) : self.navigator.clearAppBadge());
+  e.waitUntil(Promise.all(tarefas).catch(() => {}));
+});
+// Tocou no aviso: abre o app já no lugar certo (conversa ou filme).
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const alvo = new URL((e.notification.data && e.notification.data.url) || "./", self.registration.scope);
+  if (alvo.origin !== location.origin) return;
+  e.waitUntil((async () => {
+    const abertas = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of abertas) {
+      if (new URL(c.url).origin === location.origin) {
+        await c.focus().catch(() => {});
+        c.postMessage({ abrir: alvo.search });
+        return;
+      }
+    }
+    await self.clients.openWindow(alvo.href);
+  })());
 });

@@ -34,6 +34,8 @@ e abre http://localhost:8000. Usa o mesmo Supabase do site (login por código no
 | "O que ver agora?" (dia, hora, duração) | `now.js` |
 | Gêneros e "Pra você" | `gostos.js` |
 | Amigos, convites, indicações | `amigos.js` + `supabase/amigos.sql` |
+| Conversa entre amigos | `chat.js` + `supabase/chat.sql` |
+| Avisos no celular (notificação) | `push.js` + `sw.js` (receber) + `supabase/functions/push` (mandar) |
 | Sons e vibração | `sons.js` |
 | Abrir sem internet, cache | `sw.js` |
 | Endereço e chave pública do Supabase | `config.js` |
@@ -41,7 +43,8 @@ e abre http://localhost:8000. Usa o mesmo Supabase do site (login por código no
 ## Nuvem (Supabase, plano grátis)
 
 - Projeto `cinemoteca` (São Paulo). Tabelas: `items` (listas), `gostos`, `perfis`, `amizades`, `indicacoes`. Todas com RLS: cada um só vê o que é seu; o que é de amigo passa por funções que conferem a amizade.
-- SQL em `supabase/`, rodar no SQL Editor nesta ordem: `schema.sql`, `amigos.sql`, `fotos.sql`.
+- SQL em `supabase/`, rodar no SQL Editor nesta ordem: `schema.sql`, `amigos.sql`, `fotos.sql`, `chat.sql`.
+- Avisos: função `push` (`supabase/functions/push`) manda as notificações. Quem chama é o banco (gatilho em `mensagens` e `indicacoes`) e um agendamento de hora em hora (sugestão esperta: horário de cada um, sexta/sábado/domingo, feriado, série em andamento; no máx. 1 por dia e 4 por semana). Chaves VAPID e o segredo ficam no Vault (ver fim do `chat.sql`); a pública vai no `config.js`.
 - Função `tmdb` (`supabase/functions/tmdb`): faz a busca com a chave escondida no segredo `TMDB_KEY`.
 - `.github/workflows/manter-acordado.yml` dá um "oi" a cada 3 dias pro projeto grátis não pausar.
 - No `config.js` só vai a chave **pública**. Nunca a `service_role` nem a do TMDB.

@@ -1,7 +1,8 @@
 // Amigos e indicações (tudo via funções do Supabase, que conferem a amizade).
 // Guarda uma cópia no aparelho pra aba Amigos abrir mesmo sem internet.
-import * as cloud from "./cloud.js?v=26";
-import { limpa } from "./store.js?v=26";
+import * as cloud from "./cloud.js?v=27";
+import { limpa } from "./store.js?v=27";
+import * as chat from "./chat.js?v=27";
 
 let perfil = null;   // { nome, codigo }
 let amigos = null;   // [{ user_id, nome, desde }]
@@ -37,12 +38,12 @@ export function nomeConfirmado() { try { return !!localStorage.getItem(k("nome_o
 export function codigoFmt(c) { return c ? c.slice(0, 3) + "-" + c.slice(3) : ""; }
 export function linkConvite() { return perfil ? location.origin + location.pathname + "?amigo=" + perfil.codigo : ""; }
 
-export function reset() { perfil = amigos = caixa = null; erro = false; emit(); }
+export function reset() { perfil = amigos = caixa = null; erro = false; chat.reset(); emit(); }
 
 let carregando = null;
 export function carregar() {
   if (!uid()) return Promise.resolve();
-  if (!perfil) { perfil = ler("perfil"); amigos = ler("amigos"); caixa = (ler("caixa") || []).map(i => ({ ...i, data: limpa(i.data) })); if (perfil) emit(); }
+  if (!perfil) { perfil = ler("perfil"); amigos = ler("amigos"); caixa = (ler("caixa") || []).map(i => ({ ...i, data: limpa(i.data) })); chat.carregarCache(); if (perfil) emit(); }
   if (carregando) return carregando;
   carregando = (async () => {
     try {
@@ -61,6 +62,8 @@ function aplicar(r) {
   amigos = (r && r.amigos) || [];
   caixa = ((r && r.caixa) || []).map(i => ({ ...i, data: limpa(i.data) }));
   gravar("amigos", amigos); gravar("caixa", caixa);
+  if (r && r.conversas) chat.aplicar(r.conversas);
+  chat.iniciar();
   avisarNovas();
   avisarEntrou();
 }

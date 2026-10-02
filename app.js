@@ -1,10 +1,12 @@
-import * as tmdb from "./tmdb.js?v=26";
-import * as store from "./store.js?v=26";
-import * as now from "./now.js?v=26";
-import * as cloud from "./cloud.js?v=26";
-import * as gostos from "./gostos.js?v=26";
-import * as amigos from "./amigos.js?v=26";
-import * as som from "./sons.js?v=26";
+import * as tmdb from "./tmdb.js?v=27";
+import * as store from "./store.js?v=27";
+import * as now from "./now.js?v=27";
+import * as cloud from "./cloud.js?v=27";
+import * as gostos from "./gostos.js?v=27";
+import * as amigos from "./amigos.js?v=27";
+import * as som from "./sons.js?v=27";
+import * as chat from "./chat.js?v=27";
+import * as push from "./push.js?v=27";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -138,7 +140,7 @@ function errorText(e) {
 // ---------- navegação ----------
 let tab = "lista";
 function go(name) {
-  if (name !== "amigos" || tab === "amigos") amigoAberto = null;
+  if (name !== "amigos" || tab === "amigos") { amigoAberto = null; fechaChat(); }
   if (name !== tab) som.aba();
   tab = name;
   document.querySelectorAll("nav.bottom button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
@@ -158,6 +160,7 @@ function render() {
   else if (tab === "buscar") renderBuscar();
   else if (tab === "amigos") renderAmigos();
   else renderAjustes();
+  document.body.classList.toggle("chatting", tab === "amigos" && !!chatCom);
 }
 let editandoGostos = false;
 let escolha = null; // { generos:Set, tipo, mexeu }
@@ -179,7 +182,7 @@ cloud.onChange(() => {
   if (logged !== wasLogged) {
     wasLogged = logged; closeSheet(); tab = "lista"; gostos.reset(); go("lista");
     amigos.reset();
-    if (logged) { gostos.carregar(); amigos.carregar(); setTimeout(() => { abrirIndicado(); abrirConvite(); }, 300); }
+    if (logged) { gostos.carregar(); amigos.carregar(); push.sincronizar(); setTimeout(() => { abrirIndicado(); abrirConvite(); abrirChatLink(); }, 300); }
     return;
   }
   if (!needLogin() && tab === "ajustes") { const el = $("#syncLine"); if (el) el.innerHTML = syncText(); }
@@ -908,6 +911,208 @@ function refreshSheet(m) {
   wireDetails(m);
 }
 
+// ---------- CONVERSA ----------
+let chatCom = null; // { id, nome, foto }
+const hora = ts => new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+function diaTxt(ts) {
+  const d = new Date(ts), h = new Date(); h.setHours(0, 0, 0, 0);
+  const dif = Math.round((h - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  if (dif === 0) return "Hoje"; if (dif === 1) return "Ontem";
+  if (dif < 7) return d.toLocaleDateString("pt-BR", { weekday: "long" }).replace(/^./, c => c.toUpperCase());
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+function previa(c) {
+  const eu = cloud.currentUser() && c.de === cloud.currentUser().id;
+  return (eu ? "Vc: " : "") + (c.item ? `🎬 ${c.item.title}${c.texto ? " · " + c.texto : ""}` : c.texto);
+}
+function ordenaAmigos(l) {
+  return [...l].sort((a, b) => {
+    const ca = chat.resumoDe(a.user_id), cb = chat.resumoDe(b.user_id);
+    return (cb ? new Date(cb.created_at) : 0) - (ca ? new Date(ca.created_at) : 0) || a.nome.localeCompare(b.nome);
+  });
+}
+function abrirChat(id) {
+  if (needLogin() || !id) return;
+  closeSheet(true);
+  if (!(amigos.getAmigos() || []).some(a => a.user_id === id)) { if (amigos.getAmigos()) ruim("Essa conversa não tá mais disponível"); return; }
+  som.entra();
+  chatCom = { id, nome: amigos.nomeDe(id), foto: amigos.fotoDe(id) };
+  amigoAberto = null;
+  if (tab !== "amigos") { tab = "amigos"; document.querySelectorAll("nav.bottom button").forEach(b => b.classList.toggle("on", b.dataset.tab === "amigos")); }
+  render();
+  chat.abrir(id);
+}
+function fechaChat() { if (chatCom) { chatCom = null; chat.fechar(); document.body.classList.remove("chatting"); } }
+function abrirChatLink() {
+  const id = new URLSearchParams(location.search).get("chat");
+  if (!id || !/^[0-9a-f-]{36}$/.test(id) || needLogin()) return;
+  history.replaceState(null, "", location.pathname);
+  const tenta = (n) => (amigos.getAmigos() ? abrirChat(id) : n && setTimeout(() => tenta(n - 1), 500));
+  tenta(10);
+}
+const RAPIDAS = ["Bora ver algo hoje? 🍿", "Me indica um filme?", "Tô vendo um agora 🎬", "kkkkk"];
+function renderChat() {
+  const C = chatCom, primeiro = C.nome.split(" ")[0];
+  view.innerHTML = `
+    <div class="chathead">
+      <button class="back" id="chatVolta" aria-label="Voltar">‹</button>
+      <button class="chatwho" id="chatPerfil">${avatarHTML(C.nome, "", C.foto)}<span><b>${esc(C.nome)}</b><small>ver a lista de ${esc(primeiro)} ›</small></span></button>
+    </div>
+    ${push.estado() === "desligado" || push.estado() === "precisa-tela-inicio" ? `<div class="chatnote">🔔 <span>${push.estado() === "desligado" ? `Liga os avisos pra saber na hora quando ${esc(primeiro)} responder` : "Pra receber aviso, salva o app na tela de início"}</span>${push.estado() === "desligado" ? `<button class="lnk" id="chatAvisos">Ligar</button>` : ""}</div>` : ""}
+    <div class="msgs" id="msgs"></div>
+    <form class="composer" id="composer" autocomplete="off">
+      <button type="button" class="cbtn" id="mandaFilme" aria-label="Mandar um filme da sua lista">🎬</button>
+      <textarea id="msgIn" rows="1" maxlength="1000" placeholder="Mensagem pra ${esc(primeiro)}…" enterkeyhint="send"></textarea>
+      <button type="submit" class="cbtn send" id="msgOk" aria-label="Enviar" disabled>➤</button>
+    </form>`;
+  $("#chatVolta").onclick = () => { som.volta(); fechaChat(); renderAmigos(); window.scrollTo(0, 0); };
+  $("#chatPerfil").onclick = () => { const id = C.id, n = C.nome, f = C.foto; fechaChat(); abrirAmigo(id, n, f); };
+  const ca = $("#chatAvisos"); if (ca) ca.onclick = async () => { await ligarAvisos(); renderChat(); desenhaMsgs(true); };
+  const inp = $("#msgIn"), ok = $("#msgOk");
+  const cresce = () => { inp.style.height = "auto"; inp.style.height = Math.min(inp.scrollHeight, 120) + "px"; ok.disabled = !inp.value.trim(); };
+  inp.addEventListener("input", cresce);
+  inp.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !matchMedia("(pointer:coarse)").matches) { e.preventDefault(); $("#composer").requestSubmit(); } });
+  $("#composer").onsubmit = e => { e.preventDefault(); const t = inp.value.trim(); if (!t) return; inp.value = ""; cresce(); enviar(t, null); inp.focus(); };
+  $("#mandaFilme").onclick = () => escolherFilme();
+  desenhaMsgs(true);
+}
+// Teclado do iPhone: a conversa encolhe pro tamanho visível (senão o campo some atrás do teclado).
+if (window.visualViewport) {
+  const ajusta = () => {
+    if (!document.body.classList.contains("chatting")) return;
+    document.documentElement.style.setProperty("--vvh", visualViewport.height + "px");
+    window.scrollTo(0, 0);
+    const b = $("#msgs"); if (b && document.activeElement && document.activeElement.id === "msgIn") b.scrollTop = b.scrollHeight;
+  };
+  visualViewport.addEventListener("resize", ajusta);
+  visualViewport.addEventListener("scroll", ajusta);
+}
+let pendentesChat = []; // mensagens saindo (aparecem na hora, com reloginho)
+async function enviar(texto, item) {
+  const C = chatCom; if (!C) return;
+  const tmp = { id: "t" + Date.now(), de: cloud.currentUser().id, para: C.id, texto, item, created_at: new Date().toISOString(), saindo: true };
+  pendentesChat.push(tmp);
+  item ? som.card() : som.enviada();
+  desenhaMsgs(true);
+  try { await chat.mandar(C.id, texto, item); }
+  catch (e) {
+    ruim(!navigator.onLine ? "Sem internet. A mensagem não foi." : /muitas/.test(e.message || "") ? "Calma kkk muitas mensagens seguidas" : "Não consegui mandar. Tenta de novo.");
+    if (texto && $("#msgIn") && !$("#msgIn").value) { $("#msgIn").value = texto; $("#msgIn").dispatchEvent(new Event("input")); }
+  }
+  pendentesChat = pendentesChat.filter(x => x !== tmp);
+  desenhaMsgs(true);
+}
+function bolhaHTML(m, eu) {
+  const it = m.item;
+  const card = it ? `<button class="mcard" data-mk="${esc(it.key)}">${posterHTML(it, "w185", "mthumb")}<span><b>${esc(it.title)}</b><small>${typeLabel(it.type)}${it.year ? " · " + esc(it.year) : ""}</small>${verdictHTML(it)}</span></button>` : "";
+  return `<div class="msg ${eu ? "eu" : "ele"} ${it ? "temcard" : ""} ${m.saindo ? "saindo" : ""}">${card}${m.texto ? `<p>${esc(m.texto)}</p>` : ""}<time>${m.saindo ? "🕓" : hora(m.created_at)}</time></div>`;
+}
+function desenhaMsgs(rolar) {
+  const box = $("#msgs"); if (!box || !chatCom) return;
+  const eu = cloud.currentUser() && cloud.currentUser().id;
+  const l = chat.getConversa(chatCom.id).concat(pendentesChat.filter(x => x.para === chatCom.id));
+  const perto = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+  const primeiro = chatCom.nome.split(" ")[0];
+  if (!l.length) {
+    box.innerHTML = `<div class="chatvazio">${avatarHTML(chatCom.nome, "huge", chatCom.foto)}<p>Manda um oi pra ${esc(primeiro)} 👋</p>
+      <div class="rapidas">${RAPIDAS.map(r => `<button class="chip" data-rap="${esc(r)}">${esc(r)}</button>`).join("")}</div></div>`;
+    box.querySelectorAll("[data-rap]").forEach(b => b.onclick = () => enviar(b.dataset.rap, null));
+    return;
+  }
+  let html = l.length >= 50 && typeof l[0].id === "number" ? `<button class="lnk mais" id="maisMsgs">Ver mensagens mais antigas</button>` : "";
+  let dia = "";
+  for (const m of l) {
+    const d = diaTxt(m.created_at);
+    if (d !== dia) { html += `<div class="dia"><span>${esc(d)}</span></div>`; dia = d; }
+    html += bolhaHTML(m, m.de === eu);
+  }
+  const topo = box.scrollTop;
+  box.innerHTML = html;
+  box.querySelectorAll("[data-mk]").forEach(b => b.onclick = () => {
+    const m = l.find(x => x.item && x.item.key === b.dataset.mk);
+    openDetails(store.get(b.dataset.mk) || m.item);
+  });
+  const mais = $("#maisMsgs"); if (mais) mais.onclick = async () => {
+    mais.textContent = "Carregando…";
+    const alt = box.scrollHeight;
+    try { await chat.maisAntigas(chatCom.id); box.scrollTop = box.scrollHeight - alt; } catch (e) { ruim("Sem internet agora."); }
+  };
+  if (rolar || perto) box.scrollTop = box.scrollHeight;
+  else box.scrollTop = topo;
+}
+// Escolher um filme/série da sua lista pra mandar na conversa.
+function escolherFilme() {
+  const meus = store.all().sort((a, b) => (a.status === b.status ? 0 : a.status === "want" ? -1 : 1) || store.byQuality(a, b));
+  if (!meus.length) { ruim("Sua lista tá vazia. Busca um filme primeiro!"); return; }
+  const lista = q => meus.filter(m => !q || (m.title + " " + (m.original || "")).toLowerCase().includes(q)).slice(0, 60)
+    .map(m => `<li class="res pickf" data-pf="${esc(m.key)}">${posterHTML(m, "w185", "thumb")}<div class="rinfo"><div class="rtitle">${esc(m.title)}</div><div class="rmeta">${typeLabel(m.type)}${m.year ? " · " + esc(m.year) : ""} · ${m.status === "seen" ? "Já vi" : "Quero ver"}</div>${verdictHTML(m)}</div><span class="quick">Mandar</span></li>`).join("");
+  openSheet(`<div class="dbody pad2">
+    <div class="lbl">Mandar pra ${esc(chatCom.nome.split(" ")[0])}</div>
+    <input class="txt" id="pfq" placeholder="Procurar na sua lista…" autocomplete="off">
+    <ul class="results" id="pfl">${lista("")}</ul>
+    <label class="lbl" for="pfmsg">Recado (opcional)</label>
+    <input class="txt" id="pfmsg" maxlength="300" placeholder="Ex: esse é a sua cara kkk" autocomplete="off">
+  </div>`);
+  const liga = () => sheet.querySelectorAll("[data-pf]").forEach(li => li.onclick = () => {
+    const m = store.get(li.dataset.pf); if (!m) return;
+    const rec = $("#pfmsg", sheet).value.trim();
+    closeSheet(true); enviar(rec, m);
+  });
+  liga();
+  $("#pfq", sheet).addEventListener("input", e => { $("#pfl", sheet).innerHTML = lista(e.target.value.trim().toLowerCase()); liga(); });
+}
+
+// ---------- AVISOS (notificação) ----------
+const BANNER_KEY = "cinemoteca_banner_avisos";
+function avisoBannerHTML() {
+  const e = push.estado();
+  let fora = false; try { fora = !!localStorage.getItem(BANNER_KEY); } catch (er) { /* ignora */ }
+  if (fora || (e !== "desligado" && e !== "precisa-tela-inicio")) return "";
+  return `<div class="avbanner"><span class="sino">🔔</span><div><b>Liga os avisos</b><span>Mensagem de amigo, indicação e aquela sugestão na hora certa de ver filme.</span></div>
+    ${e === "desligado" ? `<button class="btn gold" id="banLiga">Ligar</button>` : ""}<button class="x" id="banX" aria-label="Agora não">×</button></div>
+    ${e === "precisa-tela-inicio" ? `<p class="tiny banhint">No iPhone, os avisos só funcionam com o app salvo na tela de início: toca em Compartilhar <b>⬆︎</b> e depois em <b>Adicionar à Tela de Início</b>.</p>` : ""}`;
+}
+function ligaBanner() {
+  const l = $("#banLiga"); if (l) l.onclick = async () => { await ligarAvisos(); renderAmigos(); };
+  const x = $("#banX"); if (x) x.onclick = () => { som.dispensar(); try { localStorage.setItem(BANNER_KEY, "1"); } catch (e) { /* ignora */ } renderAmigos(); };
+}
+async function ligarAvisos() {
+  try {
+    if (await push.ligar()) {
+      som.sino(); toast("🔔 Avisos ligados!");
+      try { const r = await navigator.serviceWorker.ready; r.showNotification("🔔 Avisos ligados!", { body: "É assim que a Cinemoteca vai te chamar 🍿", icon: "icons/icon-192.png?v=2", tag: "teste" }); } catch (e) { /* ignora */ }
+      return true;
+    }
+    if (push.estado() === "negado") ruim("Os avisos tão bloqueados. Libera em Ajustes do iPhone → Notificações → Cinemoteca.");
+    else if (push.estado() === "precisa-tela-inicio") ruim("Salva o app na tela de início primeiro (Compartilhar → Adicionar à Tela de Início).");
+    else ruim("Não deu pra ligar os avisos agora.");
+  } catch (e) { ruim(navigator.onLine ? "Não deu pra ligar os avisos agora." : "Sem internet agora."); }
+  return false;
+}
+function avisosCardHTML() {
+  const e = push.estado(), q = push.quais();
+  const linha = (k, txt) => `<button class="tgl" data-av="${k}" role="switch" aria-checked="${!!q[k]}"><span>${txt}</span><i></i></button>`;
+  return `<div class="lbl">Avisos no celular</div>
+    ${e === "ok" ? `${linha("chat", "💬 Mensagens de amigos")}${linha("ind", "🍿 Indicações que chegam")}${linha("sug", "✨ Sugestão na hora certa de ver filme")}
+      <p class="muted small">A sugestão vem no máximo 1 vez por dia (e 4 por semana), perto do horário que vc costuma usar o app. Nunca entre 23h e 9h.</p>
+      <button class="btn ghost wide" id="avDesliga">Desligar avisos neste celular</button>`
+    : e === "negado" ? `<p class="muted small">Os avisos tão bloqueados. Libera em <b>Ajustes do iPhone → Notificações → Cinemoteca</b> e volta aqui.</p>`
+    : e === "precisa-tela-inicio" ? `<p class="muted small">No iPhone, os avisos só funcionam com o app salvo na tela de início: no Safari toca em Compartilhar ⬆︎ → <b>Adicionar à Tela de Início</b> e abre por lá.</p>`
+    : e === "sem-suporte" ? `<p class="muted small">Esse aparelho/navegador não aceita avisos.</p>`
+    : `<p class="muted small">Receba mensagem de amigo, indicação e sugestão de filme na hora certa, mesmo com o app fechado.</p><button class="btn gold wide" id="avLiga">🔔 Ligar avisos</button>`}`;
+}
+function ligaAvisosCard() {
+  const c = $("#avisosCard"); if (!c) return;
+  const redesenha = () => { c.innerHTML = avisosCardHTML(); ligaAvisosCard(); };
+  const l = $("#avLiga", c); if (l) l.onclick = async () => { await ligarAvisos(); redesenha(); };
+  const d = $("#avDesliga", c); if (d) d.onclick = async () => { som.sair(); await push.desligar(); toast("Avisos desligados neste celular"); redesenha(); };
+  c.querySelectorAll("[data-av]").forEach(b => b.onclick = async () => {
+    const v = b.getAttribute("aria-checked") !== "true";
+    b.setAttribute("aria-checked", v); som.chave(v);
+    await push.mudarQuais({ [b.dataset.av]: v });
+  });
+}
+
 // ---------- AMIGOS ----------
 let amigoAberto = null;   // { id, nome, dados, indiquei, seg, erro }
 const iniciais = n => (String(n || "?").trim().split(/\s+/).map(p => p[0]).join("").slice(0, 2) || "?").toUpperCase();
@@ -923,23 +1128,38 @@ function quando(ts) {
 function badge() {
   const b = $('nav.bottom [data-tab="amigos"]'); if (!b) return;
   let s = b.querySelector(".badge");
-  const n = amigos.novas();
+  const n = amigos.novas() + chat.naoLidas();
+  push.numeroNoIcone(n);
   if (!n) { if (s) s.remove(); return; }
   if (!s) { s = document.createElement("span"); s.className = "badge"; b.appendChild(s); }
   s.textContent = n > 9 ? "9+" : n;
 }
 amigos.onChange(() => {
   badge();
-  if (tab === "amigos" && !needLogin() && !naPergunta() && !amigoAberto) renderAmigos();
+  if (tab === "amigos" && !needLogin() && !naPergunta() && !amigoAberto && !chatCom) renderAmigos();
+});
+chat.onChange(() => {
+  badge();
+  if (tab !== "amigos" || needLogin() || naPergunta()) return;
+  if (chatCom) desenhaMsgs(); else if (!amigoAberto) renderAmigos();
+});
+chat.onChegou((m, aberta) => {
+  if (aberta && !document.hidden) { som.bolha(); return; }
+  som.vinheta();
+  const nome = amigos.nomeDe(m.de).split(" ")[0];
+  toast(`💬 ${nome}: ${m.item ? "🎬 " + m.item.title : m.texto}`.slice(0, 90), "Abrir", () => abrirChat(m.de));
 });
 amigos.onNovas(lista => {
   if (tab === "amigos" && !amigoAberto) return;
   const i = lista[0];
   const txt = lista.length > 1 ? `🎬 Chegaram ${lista.length} indicações de amigos` : `🎬 ${i.nome} te indicou ${i.data.title}`;
+  som.vinheta();
   toast(txt, "Ver", () => go("amigos"));
 });
 
 function renderAmigos() {
+  if (chatCom) { renderChat(); document.body.classList.add("chatting"); return; }
+  document.body.classList.remove("chatting");
   if (amigoAberto) { renderAmigo(); return; }
   const p = amigos.getPerfil(), lista = amigos.getAmigos(), caixa = amigos.pendentes();
   if (!p) {
@@ -962,6 +1182,7 @@ function renderAmigos() {
         <span class="muted small">Seu código: <b class="cod">${esc(amigos.codigoFmt(p.codigo))}</b></span>
       </div>
     </div>
+    ${avisoBannerHTML()}
     <div class="row2">
       <button class="btn gold" id="convidar">📲 Chamar amigo</button>
       <button class="btn" id="verQr">📷 Meu QR code</button>
@@ -972,12 +1193,12 @@ function renderAmigos() {
       <ul class="inds">${caixa.map(indHTML).join("")}</ul>` : ""}
 
     <div class="lbl">Seus amigos ${lista && lista.length ? `<b class="cnt">${lista.length}</b>` : ""}</div>
-    ${lista && lista.length ? `<ul class="amigos">${lista.map(a => `
-      <li class="amg" data-amigo="${esc(a.user_id)}">
+    ${lista && lista.length ? `<ul class="amigos">${ordenaAmigos(lista).map(a => { const c = chat.resumoDe(a.user_id), n = chat.naoLidas(a.user_id); return `
+      <li class="amg ${n ? "nova" : ""}" data-amigo="${esc(a.user_id)}">
         ${avatarHTML(a.nome, "", a.foto)}
-        <div class="rinfo"><div class="rtitle">${esc(a.nome)}</div><div class="rmeta">Amigos desde ${esc(quando(a.desde))}</div></div>
-        <span class="chev">›</span>
-      </li>`).join("")}</ul>`
+        <div class="rinfo"><div class="rtitle">${esc(a.nome)}</div><div class="rmeta">${c ? esc(previa(c)) : `Amigos desde ${esc(quando(a.desde))}`}</div></div>
+        <button class="chatbtn" data-chat="${esc(a.user_id)}" aria-label="Conversar com ${esc(a.nome)}">💬${n ? `<b>${n > 9 ? "9+" : n}</b>` : ""}</button>
+      </li>`; }).join("")}</ul>`
       : `<div class="empty small">
         <div class="empty-emoji">🍿👥</div>
         <p>Chama a galera! Vocês veem a lista um do outro, descobrem o que os dois querem ver e mandam indicação direto pro app.</p>
@@ -998,7 +1219,12 @@ function renderAmigos() {
   $("#temCod").onclick = sheetCodigo;
   $("#verQr").onclick = sheetQr;
   $("#minhaFoto").onclick = sheetFoto;
-  view.querySelectorAll(".amg").forEach(li => li.onclick = () => { som.entra(); abrirAmigo(li.dataset.amigo); });
+  view.querySelectorAll(".amg").forEach(li => li.onclick = e => {
+    const cb = e.target.closest("[data-chat]");
+    if (cb) { e.stopPropagation(); abrirChat(cb.dataset.chat); return; }
+    som.entra(); abrirAmigo(li.dataset.amigo);
+  });
+  ligaBanner();
   view.querySelectorAll(".ind").forEach(li => {
     const i = caixa.find(x => String(x.id) === li.dataset.ind);
     li.onclick = e => {
@@ -1061,7 +1287,7 @@ function carregaQr() {
   if (window.qrcode) return Promise.resolve();
   if (!qrLib) qrLib = new Promise((ok, falha) => {
     const sc = document.createElement("script");
-    sc.src = "vendor/qrcode.js?v=26"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    sc.src = "vendor/qrcode.js?v=27"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
     document.head.appendChild(sc);
   });
   return qrLib;
@@ -1241,6 +1467,7 @@ function renderAmigo() {
       </div>
       ${af != null ? `<div class="afin" title="Afinidade"><b>${af}%</b><span>afinidade</span></div>` : ""}
     </div>
+    <button class="btn gold wide conv" id="conversar">💬 Conversar com ${esc(primeiro)}${chat.naoLidas(A.id) ? ` <b class="cnt">${chat.naoLidas(A.id)}</b>` : ""}</button>
     ${g && g.generos && g.generos.length ? `<div class="tags">${g.generos.map(id => `<span class="tag">${esc(gostos.label(id))}</span>`).join("")}</div>` : ""}
     ${comum.length ? `<button class="nowbar" id="sorteiaDois"><span>🎲 <b>Sortear um pros dois</b></span><span class="nowslot">${comum.length} em comum ›</span></button>` : ""}
     ${praMim.length ? `<div class="lbl">⭐ ${esc(primeiro)} amou e você não viu</div>
@@ -1253,6 +1480,7 @@ function renderAmigo() {
     <button class="btn ghost danger wide" id="desfaz">Desfazer amizade</button>
   `;
   $("#voltar").onclick = () => { som.volta(); amigoAberto = null; renderAmigos(); window.scrollTo(0, 0); };
+  $("#conversar").onclick = () => abrirChat(A.id);
   view.querySelectorAll("[data-aseg]").forEach(b => b.onclick = () => { if (A.seg !== b.dataset.aseg) som.selecao(); A.seg = b.dataset.aseg; renderAmigo(); });
   const todos = new Map([...itens, ...A.indiquei.map(x => x.data)].map(i => [i.key, i]));
   const abre = key => openDetails(meuKey.get(key) || todos.get(key));
@@ -1471,6 +1699,8 @@ function renderAjustes() {
       <p class="muted small">Se o iPhone tiver no silencioso, o app fica quieto também.</p>
     </div>
 
+    ${u ? `<div class="card" id="avisosCard">${avisosCardHTML()}</div>` : ""}
+
 
     <div class="card">
       <div class="lbl">Sua lista (${n} ${n === 1 ? "título" : "títulos"})</div>
@@ -1497,6 +1727,7 @@ function renderAjustes() {
   `;
   $("#tSom").onclick = e => { const v = !som.ligado(); som.liga("som", v); e.currentTarget.setAttribute("aria-checked", v); if (v) som.chave(true); };
   $("#tVib").onclick = e => { const v = !som.vibraLigado(); som.liga("vibra", v); e.currentTarget.setAttribute("aria-checked", v); som.chave(v); };
+  ligaAvisosCard();
   $("#editG").onclick = editarGostos;
   $("#verTuto").onclick = () => mostrarTutorial(true);
   const sn = $("#syncNow"); if (sn) sn.onclick = () => { som.sincroniza(); cloud.sync(); toast("Sincronizando…"); };
@@ -1506,6 +1737,7 @@ function renderAjustes() {
       ? `Tem ${pend} alteração(ões) que ainda não subiram (sem internet). Elas ficam guardadas neste aparelho e sobem quando você entrar de novo. Sair mesmo?`
       : "Sair da sua conta neste aparelho? Sua lista continua salva na nuvem.")) return;
     som.sair();
+    await push.esquecer();
     await cloud.signOut();
   };
   $("#exp").onclick = () => {
@@ -1607,7 +1839,16 @@ gostos.carregar();
 if (!needLogin() && !store.all().length && tmdb.ready()) go("buscar"); else render();
 abrirIndicado();
 amigos.start();
-if (cloud.currentUser()) { amigos.carregar(); abrirConvite(); }
+if (cloud.currentUser()) { amigos.carregar(); abrirConvite(); push.sincronizar(); setTimeout(abrirChatLink, 400); }
+// Voltou pro app: conta pro servidor (aprende o horário e não manda sugestão à toa).
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && cloud.currentUser()) push.sincronizar(); });
+// Tocou num aviso com o app já aberto: o service worker manda pra onde ir.
+if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => {
+  const q = e.data && typeof e.data.abrir === "string" ? new URLSearchParams(e.data.abrir) : null;
+  if (!q || needLogin()) return;
+  if (q.get("chat")) abrirChat(q.get("chat"));
+  else if (q.get("t")) { history.replaceState(null, "", "?t=" + encodeURIComponent(q.get("t"))); abrirIndicado(); }
+});
 setTimeout(() => { if (!document.body.classList.contains("sheet-open")) mostrarTutorial(); }, 1500);
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {

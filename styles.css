@@ -445,3 +445,75 @@ nav.bottom button{ position:relative; }
 .tgl[aria-checked="true"] i::after{ transform:translateX(18px); }
 
 @media (prefers-reduced-motion: reduce){ .bump, .nowcard.rola .dposter{ animation:none; } }
+
+/* ---------- conversa ---------- */
+body.chatting{ padding-bottom:0; overflow:hidden; }
+body.chatting nav.bottom, body.chatting #dice{ display:none; }
+body.chatting main{ display:flex; flex-direction:column; padding:0; max-width:720px;
+  height:calc(var(--vvh, 100dvh) - 61px - var(--safe-t)); }
+.chathead{ display:flex; align-items:center; gap:4px; padding:8px 12px 8px 6px; border-bottom:1px solid var(--line); background:#0d0d14cc; }
+.chathead .back{ font-size:30px; line-height:1; padding:0 10px 4px; }
+.chatwho{ display:flex; align-items:center; gap:10px; text-align:left; min-width:0; flex:1; }
+.chatwho .av{ width:38px; height:38px; font-size:14px; }
+.chatwho span{ display:flex; flex-direction:column; min-width:0; }
+.chatwho b{ font-size:15.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.chatwho small{ font-size:11.5px; color:var(--gold); }
+.chatnote{ display:flex; align-items:center; gap:8px; margin:8px 12px 0; padding:9px 12px; border-radius:12px; background:var(--gold-dim); border:1px solid #e5b56733; font-size:12.5px; }
+.chatnote span{ flex:1; }
+.chatnote .lnk{ color:var(--gold); font-weight:700; }
+.msgs{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; padding:10px 12px 6px; display:flex; flex-direction:column; gap:4px; }
+.msgs .mais{ align-self:center; margin:4px 0 10px; color:var(--gold); font-size:13px; }
+.dia{ align-self:center; margin:10px 0 6px; }
+.dia span{ font-size:11px; color:var(--dim); background:#ffffff0d; padding:3px 10px; border-radius:100px; }
+.msg{ max-width:80%; padding:8px 12px 6px; border-radius:18px; font-size:15px; line-height:1.38; position:relative;
+  word-wrap:break-word; overflow-wrap:anywhere; animation:msgIn .22s cubic-bezier(.2,1.2,.4,1) both; }
+.msg p{ white-space:pre-wrap; }
+.msg time{ display:block; text-align:right; font-size:10px; opacity:.55; margin-top:2px; }
+.msg.eu{ align-self:flex-end; background:linear-gradient(135deg,#e5b567,#d9a24d); color:#1a1400; border-bottom-right-radius:6px; }
+.msg.ele{ align-self:flex-start; background:var(--card2); border:1px solid var(--line); border-bottom-left-radius:6px; }
+.msg.saindo{ opacity:.7; }
+.msg.temcard{ padding:6px 6px 6px; }
+.msg.temcard p{ padding:6px 6px 0; }
+.msg.temcard time{ padding:0 6px; }
+@keyframes msgIn{ from{ transform:translateY(8px) scale(.96); opacity:0; } to{ transform:none; opacity:1; } }
+.mcard{ display:flex; gap:10px; align-items:center; text-align:left; background:#0000002e; border-radius:13px; padding:6px; width:100%; color:inherit; }
+.msg.ele .mcard{ background:#ffffff0a; }
+.mthumb{ width:46px; height:69px; border-radius:8px; object-fit:cover; flex-shrink:0; background:#222; }
+.mthumb.noimg{ display:flex; align-items:center; justify-content:center; font-size:9px; padding:3px; text-align:center; }
+.mcard span{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.mcard b{ font-size:14px; line-height:1.2; }
+.mcard small{ font-size:11px; opacity:.7; }
+.msg.eu .verd{ background:#1a140022; color:#1a1400; }
+.chatvazio{ margin:auto; text-align:center; color:var(--dim); padding:20px 10px; }
+.chatvazio p{ margin:6px 0 14px; font-size:15px; color:var(--text); }
+.rapidas{ display:flex; flex-wrap:wrap; justify-content:center; gap:8px; }
+.composer{ display:flex; align-items:flex-end; gap:8px; padding:8px 10px calc(8px + var(--safe-b)); border-top:1px solid var(--line); background:#0d0d14f2; }
+.composer textarea{ flex:1; resize:none; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:9px 14px; color:var(--text);
+  font:inherit; font-size:16px; line-height:1.35; max-height:120px; outline:none; }
+.composer textarea:focus{ border-color:#e5b56766; }
+.cbtn{ width:40px; height:40px; flex-shrink:0; border-radius:50%; background:var(--card); border:1px solid var(--line); font-size:18px; display:grid; place-items:center; }
+.cbtn.send{ background:var(--gold); color:#1a1400; border:none; font-size:16px; transition:transform .15s, opacity .15s; }
+.cbtn.send[disabled]{ opacity:.35; transform:scale(.88); }
+.cbtn:active{ transform:scale(.88); }
+.pickf .quick{ font-size:12px; }
+
+/* lista de amigos com conversa */
+.chatbtn{ position:relative; width:42px; height:42px; border-radius:50%; background:var(--card2); border:1px solid var(--line); font-size:18px; flex-shrink:0; }
+.chatbtn b{ position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:100px; background:var(--red); color:#fff; font-size:10.5px; line-height:18px; }
+.amg.nova .rmeta{ color:var(--text); font-weight:600; }
+.amg .rmeta{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.btn.conv{ margin:0 0 12px; }
+.btn.conv .cnt{ background:#1a1400; color:var(--gold); padding:1px 7px; border-radius:100px; font-size:12px; }
+
+/* convite pros avisos */
+.avbanner{ display:flex; align-items:center; gap:12px; padding:12px 12px 12px 14px; margin:0 0 12px; border-radius:16px;
+  background:linear-gradient(135deg,#e5b56726,#a78bfa1c); border:1px solid #e5b56740; position:relative; }
+.avbanner .sino{ font-size:26px; animation:sino 2.4s ease-in-out infinite; transform-origin:50% 10%; }
+.avbanner div{ flex:1; display:flex; flex-direction:column; gap:2px; font-size:13px; }
+.avbanner div span{ color:var(--dim); font-size:12px; line-height:1.35; }
+.avbanner .btn{ padding:9px 14px; }
+.avbanner .x{ position:absolute; top:2px; right:6px; color:var(--dim); font-size:18px; padding:2px 6px; }
+.banhint{ margin:-6px 4px 12px; }
+@keyframes sino{ 0%,80%,100%{ transform:rotate(0); } 84%{ transform:rotate(14deg); } 88%{ transform:rotate(-12deg); } 92%{ transform:rotate(8deg); } 96%{ transform:rotate(-4deg); } }
+@media (prefers-reduced-motion: reduce){ .msg, .avbanner .sino{ animation:none; } }
+.pickf .quick{ display:flex; align-items:center; }

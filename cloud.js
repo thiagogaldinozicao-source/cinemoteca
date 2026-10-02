@@ -1,7 +1,7 @@
 // Conta e nuvem (Supabase): login por código no e-mail e sincronização da lista.
 // A lista continua no aparelho (funciona sem internet) e vai/vem da nuvem
 // sempre que tem conexão.
-import * as store from "./store.js?v=26";
+import * as store from "./store.js?v=27";
 
 const cfg = window.CINEMOTECA_CONFIG || {};
 const URL_ = (cfg.SUPABASE_URL || "").trim().replace(/\/+$/, "");
@@ -164,6 +164,8 @@ export async function tirarFoto() {
   await rpc("salvar_foto", { v: null });
   await sb.storage.from("avatares").remove([`${user.id}.jpg`]);
 }
+// Cliente do Supabase (pra conversa em tempo real). null sem internet/biblioteca.
+export function client() { return sb && user ? sb : null; }
 export function functionsUrl(name) { return `${URL_}/functions/v1/${name}`; }
 export function publicKey() { return KEY; }
 
