@@ -1,12 +1,12 @@
-import * as tmdb from "./tmdb.js?v=27";
-import * as store from "./store.js?v=27";
-import * as now from "./now.js?v=27";
-import * as cloud from "./cloud.js?v=27";
-import * as gostos from "./gostos.js?v=27";
-import * as amigos from "./amigos.js?v=27";
-import * as som from "./sons.js?v=27";
-import * as chat from "./chat.js?v=27";
-import * as push from "./push.js?v=27";
+import * as tmdb from "./tmdb.js?v=28";
+import * as store from "./store.js?v=28";
+import * as now from "./now.js?v=28";
+import * as cloud from "./cloud.js?v=28";
+import * as gostos from "./gostos.js?v=28";
+import * as amigos from "./amigos.js?v=28";
+import * as som from "./sons.js?v=28";
+import * as chat from "./chat.js?v=28";
+import * as push from "./push.js?v=28";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -652,6 +652,7 @@ function openSheet(html, mudo) {
   $(".close", sheet).onclick = () => closeSheet();
 }
 function closeSheet(mudo) {
+  som.modoVideo(false);
   if (mudo !== true && document.body.classList.contains("sheet-open")) som.fecha();
   tutoAberto = false;
   if (detailsCtl) { detailsCtl.abort(); detailsCtl = null; }
@@ -888,6 +889,7 @@ function wireDetails(m) {
   const tr = sheet.querySelector("[data-trailer]");
   if (tr) tr.onclick = () => {
     som.projetor();
+    som.modoVideo(true);
     const f = document.createElement("iframe");
     f.src = `https://www.youtube-nocookie.com/embed/${tr.dataset.trailer}?autoplay=1&playsinline=1&rel=0`;
     f.title = "Trailer";
@@ -1287,7 +1289,7 @@ function carregaQr() {
   if (window.qrcode) return Promise.resolve();
   if (!qrLib) qrLib = new Promise((ok, falha) => {
     const sc = document.createElement("script");
-    sc.src = "vendor/qrcode.js?v=27"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    sc.src = "vendor/qrcode.js?v=28"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
     document.head.appendChild(sc);
   });
   return qrLib;

@@ -3,7 +3,10 @@
 const KEY = "cinemoteca_sons";
 let cfg = { som: true, vibra: true };
 try { cfg = { ...cfg, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch (e) { /* ignora */ }
-try { if (navigator.audioSession) navigator.audioSession.type = "ambient"; } catch (e) { /* ignora */ }
+const sessao = t => { try { if (navigator.audioSession) navigator.audioSession.type = t; } catch (e) { /* ignora */ } };
+sessao("ambient");
+// Trailer: modo "playback" pra tocar com som mesmo no silencioso; ao fechar volta pro "ambient".
+export const modoVideo = on => sessao(on ? "playback" : "ambient");
 
 export const ligado = () => cfg.som;
 export const vibraLigado = () => cfg.vibra;

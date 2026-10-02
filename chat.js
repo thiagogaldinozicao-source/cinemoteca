@@ -1,8 +1,8 @@
 // Conversa entre amigos. Mensagem nova chega na hora (tempo real do Supabase)
 // enquanto o app tá aberto; com o app fechado quem avisa é a notificação (push.js).
 // Guarda as últimas mensagens de cada conversa no aparelho pra abrir sem internet.
-import * as cloud from "./cloud.js?v=27";
-import { limpa } from "./store.js?v=27";
+import * as cloud from "./cloud.js?v=28";
+import { limpa } from "./store.js?v=28";
 
 let conversas = new Map(); // amigo -> { texto, item, de, created_at, naolidas }
 const msgs = new Map();    // amigo -> [mensagens]
