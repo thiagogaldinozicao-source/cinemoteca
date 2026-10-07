@@ -1,6 +1,6 @@
 // Acesso à API do TMDB (https://developer.themoviedb.org) pela função "tmdb" do
 // Supabase, que guarda a chave escondida no servidor.
-import * as cloud from "./cloud.js?v=28";
+import * as cloud from "./cloud.js?v=29";
 
 const IMG = "https://image.tmdb.org/t/p/";
 const LANG = "pt-BR";

@@ -1,12 +1,12 @@
-import * as tmdb from "./tmdb.js?v=28";
-import * as store from "./store.js?v=28";
-import * as now from "./now.js?v=28";
-import * as cloud from "./cloud.js?v=28";
-import * as gostos from "./gostos.js?v=28";
-import * as amigos from "./amigos.js?v=28";
-import * as som from "./sons.js?v=28";
-import * as chat from "./chat.js?v=28";
-import * as push from "./push.js?v=28";
+import * as tmdb from "./tmdb.js?v=29";
+import * as store from "./store.js?v=29";
+import * as now from "./now.js?v=29";
+import * as cloud from "./cloud.js?v=29";
+import * as gostos from "./gostos.js?v=29";
+import * as amigos from "./amigos.js?v=29";
+import * as som from "./sons.js?v=29";
+import * as chat from "./chat.js?v=29";
+import * as push from "./push.js?v=29";
 
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
@@ -816,6 +816,90 @@ function mostrarTutorial(forcar) {
 
 // ---------- INDICAR (compartilhar do celular) ----------
 function linkDe(m) { return location.origin + location.pathname + "?t=" + encodeURIComponent(m.key); }
+// Card em formato de story (1080x1920): serve pra status do Whats, story do Insta e do Face.
+// Fica pronto antes do toque, porque o iPhone só deixa compartilhar arquivo logo depois do clique.
+const cardsProntos = new Map();
+function carregaImg(src) {
+  return new Promise((ok, ruim) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ruim; i.src = src; });
+}
+function quebra(ctx, txt, max, linhas) {
+  const pal = String(txt).split(/\s+/), out = []; let l = "";
+  for (const w of pal) {
+    const t = l ? l + " " + w : w;
+    if (ctx.measureText(t).width > max && l) { out.push(l); l = w; } else l = t;
+  }
+  if (l) out.push(l);
+  if (out.length > linhas) { out.length = linhas; let u = out[linhas - 1]; while (ctx.measureText(u + "…").width > max && u) u = u.slice(0, -1); out[linhas - 1] = u.trimEnd() + "…"; }
+  return out;
+}
+async function montaCard(m) {
+  const W = 1080, H = 1920, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const ctx = c.getContext("2d");
+  let img = null;
+  if (m.poster) {
+    try {
+      const r = await fetch(tmdb.img(m.poster, "w780"), { mode: "cors", credentials: "omit" });
+      if (r.ok) { const u = URL.createObjectURL(await r.blob()); try { img = await carregaImg(u); } finally { setTimeout(() => URL.revokeObjectURL(u), 1000); } }
+    } catch (e) { img = null; }
+  }
+  // fundo: pôster borrado e escurecido
+  ctx.fillStyle = "#0d0b10"; ctx.fillRect(0, 0, W, H);
+  if (img) {
+    ctx.save(); ctx.filter = "blur(40px) brightness(0.45)";
+    const k = Math.max(W / img.width, H / img.height) * 1.15;
+    ctx.drawImage(img, (W - img.width * k) / 2, (H - img.height * k) / 2, img.width * k, img.height * k);
+    ctx.restore();
+  }
+  const g = ctx.createLinearGradient(0, H * 0.5, 0, H); g.addColorStop(0, "rgba(13,11,16,0)"); g.addColorStop(1, "rgba(13,11,16,.92)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const F = '-apple-system, "SF Pro Display", system-ui, sans-serif';
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  // topo
+  ctx.fillStyle = "#e9c46a"; ctx.font = `700 46px ${F}`;
+  ctx.fillText("🎬 TE INDICO", W / 2, 230);
+  // pôster
+  const pw = 640, ph = 960, px = (W - pw) / 2, py = 300;
+  ctx.save(); ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 60; ctx.shadowOffsetY = 20;
+  ctx.beginPath(); ctx.roundRect(px, py, pw, ph, 36); ctx.fillStyle = "#1c1a22"; ctx.fill(); ctx.restore();
+  ctx.save(); ctx.beginPath(); ctx.roundRect(px, py, pw, ph, 36); ctx.clip();
+  if (img) ctx.drawImage(img, px, py, pw, ph);
+  else { ctx.fillStyle = "#2a2632"; ctx.fillRect(px, py, pw, ph); ctx.font = `200px ${F}`; ctx.fillText("🎬", W / 2, py + ph / 2 + 70); }
+  ctx.restore();
+  // título
+  let y = py + ph + 130;
+  ctx.fillStyle = "#fff"; ctx.font = `800 76px ${F}`;
+  const tl = quebra(ctx, m.title || "", W - 160, 2);
+  tl.forEach((l, i) => ctx.fillText(l, W / 2, y + i * 88)); y += (tl.length - 1) * 88;
+  const sub = [m.year, m.type === "tv" ? "Série" : "Filme"].filter(Boolean).join(" · ");
+  ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.font = `500 42px ${F}`; ctx.fillText(sub, W / 2, y + 70);
+  // selo
+  const v = tmdb.verdict(m.vote, m.votes);
+  const nota = m.vote != null && m.votes >= 50 ? `  ★ ${m.vote.toFixed(1)}` : "";
+  const selo = `${v.emoji} ${v.label}${nota}`;
+  ctx.font = `700 48px ${F}`;
+  const sw = ctx.measureText(selo).width + 90, sy = y + 120;
+  ctx.beginPath(); ctx.roundRect((W - sw) / 2, sy, sw, 96, 48); ctx.fillStyle = "rgba(233,196,106,.18)"; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = "rgba(233,196,106,.7)"; ctx.stroke();
+  ctx.fillStyle = "#f4dd9c"; ctx.fillText(selo, W / 2, sy + 64);
+  // rodapé
+  ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.font = `600 38px ${F}`;
+  ctx.fillText("Cinemoteca", W / 2, H - 110);
+  const blob = await new Promise(ok => c.toBlob(ok, "image/jpeg", 0.9));
+  if (!blob) return null;
+  const nome = (m.title || "indicacao").normalize("NFD").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "indicacao";
+  return new File([blob], nome + ".jpg", { type: "image/jpeg" });
+}
+const idCard = m => [m.key, m.title, m.poster, m.vote].join("|");
+// Chama quando abre o detalhe: o card fica pronto pro toque no compartilhar.
+function preparaCard(m) {
+  if (!m || !m.id || !m.title || m.title === "Carregando…") return;
+  const k = idCard(m);
+  if (cardsProntos.has(k)) return;
+  const pr = { file: null };
+  cardsProntos.set(k, pr);
+  if (cardsProntos.size > 8) cardsProntos.delete(cardsProntos.keys().next().value);
+  montaCard(m).then(f => { pr.file = f; }).catch(() => { cardsProntos.delete(k); });
+}
 async function indicar(m) {
   const v = tmdb.verdict(m.vote, m.votes);
   const nota = m.vote != null && m.votes >= 50 ? ` · ${m.vote.toFixed(1)}` : "";
@@ -823,6 +907,13 @@ async function indicar(m) {
   const url = linkDe(m);
   som.enviar();
   if (navigator.share) {
+    const pr = cardsProntos.get(idCard(m));
+    const file = pr && pr.file;
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text: txt + "\n" + url }); return; }
+      catch (e) { if (e && e.name === "AbortError") return; /* não deu com imagem: vai só o texto */ }
+    }
+    preparaCard(m);
     try { await navigator.share({ title: m.title, text: txt, url }); } catch (e) { /* cancelou */ }
     return;
   }
@@ -845,6 +936,7 @@ function abrirIndicado() {
 }
 
 function wireDetails(m) {
+  preparaCard(m);
   const cb = $(".closebar", sheet);
   if (cb && m.id && !cb.querySelector(".share")) {
     const b = document.createElement("button");
@@ -1289,7 +1381,7 @@ function carregaQr() {
   if (window.qrcode) return Promise.resolve();
   if (!qrLib) qrLib = new Promise((ok, falha) => {
     const sc = document.createElement("script");
-    sc.src = "vendor/qrcode.js?v=28"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
+    sc.src = "vendor/qrcode.js?v=29"; sc.onload = ok; sc.onerror = () => { qrLib = null; falha(); };
     document.head.appendChild(sc);
   });
   return qrLib;
