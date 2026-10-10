@@ -26,6 +26,18 @@ function writeLast(u) {
   try { u ? localStorage.setItem(LAST, JSON.stringify(u)) : localStorage.removeItem(LAST); } catch (e) { /* ignora */ }
 }
 function emit() { listeners.forEach(fn => fn()); }
+// Saiu da conta: apaga do aparelho o que é particular dela (conversas, amigos, indicações).
+// A lista fica por conta do store (só some se já subiu tudo pra nuvem).
+function esqueceParticular(uid) {
+  try {
+    const tira = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.endsWith("_" + uid) && /^cinemoteca_(perfil|amigos|caixa|conversas|msgs_.+)_/.test(k)) tira.push(k);
+    }
+    tira.forEach(k => localStorage.removeItem(k));
+  } catch (e) { /* ignora */ }
+}
 function setStatus(s) { if (s !== status) { status = s; emit(); } }
 
 export function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -36,8 +48,6 @@ export function syncStatus() { return { status, pending: store.pendingCount(), o
 export function start() {
   if (!enabled) return;
   if (user) store.useAccount(user.id);
-  // Com a nuvem ligada a chave do TMDB colada no aparelho não é mais usada.
-  try { localStorage.removeItem("cinemoteca_tmdb_key"); } catch (e) { /* ignora */ }
   if (!window.supabase) return; // biblioteca não carregou: segue só com a cópia do aparelho
   sb = window.supabase.createClient(URL_, KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit",
@@ -76,6 +86,7 @@ async function handleAuth(event, session) {
     user = null; writeLast(null);
     // Se ainda tinha coisa pra subir, guarda a cópia até entrar de novo.
     if (store.pendingCount()) store.useAccount(null); else store.forgetAccount(old.id);
+    esqueceParticular(old.id);
     emit();
   }
 }
@@ -122,6 +133,7 @@ export async function signOut() {
   if (error && user) { // sem internet: sai só deste aparelho
     const old = user; user = null; writeLast(null);
     if (store.pendingCount()) store.useAccount(null); else store.forgetAccount(old.id);
+    esqueceParticular(old.id);
     emit();
   }
 }
