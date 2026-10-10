@@ -1,4 +1,7 @@
-// Guarda a "casca" do app para abrir rápido e funcionar sem internet.
+// Guarda a "casca" do app para abrir na hora e funcionar sem internet.
+// Cada versão tem a sua gaveta (CACHE) com a página e todos os arquivos juntos.
+// Versão nova: o navegador vê que este arquivo mudou, baixa tudo pra uma gaveta nova
+// e só então troca. O app aberto recebe o aviso "tem versão nova" (ver fim do app.js).
 // Capas dos filmes também ficam guardadas (a lista aparece bonita mesmo offline).
 const CACHE = "cinemoteca-v29";
 const IMGS = "cinemoteca-capas";
@@ -25,7 +28,7 @@ function networkFirst(req, ms) {
       caches.match(req).then(r => { if (r && !done) { done = true; resolve(r); } });
     }, ms);
     fetch(req, { cache: "no-cache" }).then(res => {
-      if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
+      if (res && res.ok && req.mode !== "navigate") { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
       clearTimeout(timer);
       if (!done) { done = true; resolve(res); }
     }).catch(() => {
@@ -33,6 +36,12 @@ function networkFirst(req, ms) {
       if (!done) fromCache().then(r => { done = true; resolve(r || Response.error()); });
     });
   });
+}
+
+// A página (com qualquer ?t=, ?chat=, ?amigo= no endereço) é sempre o index.html guardado.
+async function pagina(req) {
+  const hit = await (await caches.open(CACHE)).match("index.html");
+  return hit || networkFirst(req, 4000);
 }
 
 // Arquivo com versão (?v=N) nunca muda: se já tem guardado, abre na hora, sem
@@ -79,7 +88,8 @@ self.addEventListener("fetch", e => {
   if (url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com") { e.respondWith(cacheFirst(e.request, FONTES)); return; }
   if (url.origin !== location.origin) return;
   if (url.searchParams.has("v")) { e.respondWith(cacheFirst(e.request, CACHE)); return; }
-  // A página em si sempre confere a rede (é ela que traz os ?v= novos).
+  // A página abre direto da gaveta desta versão, sem esperar a rede.
+  if (e.request.mode === "navigate") { e.respondWith(pagina(e.request)); return; }
   e.respondWith(networkFirst(e.request, 2000));
 });
 

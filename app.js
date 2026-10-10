@@ -19,7 +19,7 @@ const typeLabel = t => (t === "tv" ? "Série" : "Filme");
 const nomeTipo = t => (t === "movie" ? "filmes" : t === "tv" ? "séries" : "títulos"); // filtro da aba
 
 let toastTimer;
-function toast(msg, acao, fn) {
+function toast(msg, acao, fn, ms) {
   const t = $("#toast");
   t.textContent = msg;
   t.classList.toggle("act", !!acao);
@@ -31,7 +31,7 @@ function toast(msg, acao, fn) {
   }
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), acao ? 5000 : 2200);
+  toastTimer = setTimeout(() => t.classList.remove("show"), ms || (acao ? 5000 : 2200));
 }
 
 // Aviso de que algo não deu certo: com o som de erro.
@@ -1982,5 +1982,21 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("mess
 setTimeout(() => { if (!document.body.classList.contains("sheet-open")) mostrarTutorial(); }, 1500);
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+  // O app abre na hora com a versão guardada. Quando a nova termina de baixar por trás,
+  // avisa (não recarrega sozinho pra não perder o que a pessoa tá fazendo).
+  const jaTinha = !!navigator.serviceWorker.controller;
+  let avisou = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!jaTinha || avisou) return;
+    avisou = true;
+    toast("✨ Tem versão nova da Cinemoteca", "Atualizar", () => location.reload(), 12000);
+  });
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    // App que fica dias aberto em segundo plano: confere se saiu versão quando volta pra frente.
+    let ultima = Date.now();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible" || Date.now() - ultima < 30 * 60e3) return;
+      ultima = Date.now(); reg.update().catch(() => {});
+    });
+  }).catch(() => {});
 }

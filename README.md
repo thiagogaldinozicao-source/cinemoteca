@@ -18,7 +18,7 @@ e abre http://localhost:8000. Usa o mesmo Supabase do site (login por código no
 
 1. Sobe a versão: `./versao.sh 22` (troca todos os `?v=` e o cache do `sw.js` de uma vez).
 2. `git commit` e `git push` na `main`. O GitHub Pages publica sozinho em ~1 min.
-3. No iPhone: fecha o app e abre de novo (às vezes precisa abrir duas vezes).
+3. No iPhone: o app abre na hora com a versão guardada e baixa a nova por trás. Quando termina, aparece "Tem versão nova" com o botão **Atualizar** (ou é só fechar e abrir de novo).
 
 Ícones têm versão separada (`?v=N` nos links de ícone e no `manifest.webmanifest`). Pra trocar o ícone no iPhone tem que apagar o atalho e adicionar de novo.
 
