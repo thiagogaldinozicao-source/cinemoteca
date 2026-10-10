@@ -489,6 +489,8 @@ body.chatting main{ display:flex; flex-direction:column; padding:0; max-width:72
 .mcard span{ display:flex; flex-direction:column; gap:3px; min-width:0; }
 .mcard b{ font-size:14px; line-height:1.2; }
 .mcard small{ font-size:11px; opacity:.7; }
+.msg .mq{ display:block; margin:8px 2px 2px; padding:8px 14px; border-radius:100px; background:var(--gold); color:#1a1400; font-weight:700; font-size:13px; }
+.msg .mtem{ display:block; margin:7px 6px 1px; font-size:12px; color:var(--dim); }
 .msg.eu .verd{ background:#1a140022; color:#1a1400; }
 .chatvazio{ margin:auto; text-align:center; color:var(--dim); padding:20px 10px; }
 .chatvazio p{ margin:6px 0 14px; font-size:15px; color:var(--text); }

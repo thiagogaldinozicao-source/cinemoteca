@@ -173,7 +173,7 @@ store.onChange(() => {
   }
   if (!needLogin() && tab === "lista") renderLista();
   // Na conversa a lista não aparece: não redesenha (senão apaga o que a pessoa tá digitando).
-  else if (!needLogin() && tab === "amigos" && !chatCom) renderAmigos();
+  else if (!needLogin() && tab === "amigos") { if (chatCom) desenhaMsgs(); else renderAmigos(); }
 });
 
 // Entrou/saiu da conta: redesenha tudo. Só mudou o status da nuvem: atualiza Ajustes.
@@ -1170,7 +1170,11 @@ async function enviar(texto, item) {
 function bolhaHTML(m, eu) {
   const it = m.item;
   const card = it ? `<button class="mcard" data-mk="${esc(it.key)}">${posterHTML(it, "w185", "mthumb")}<span><b>${esc(it.title)}</b><small>${typeLabel(it.type)}${it.year ? " · " + esc(it.year) : ""}</small>${verdictHTML(it)}</span></button>` : "";
-  return `<div class="msg ${eu ? "eu" : "ele"} ${it ? "temcard" : ""} ${m.saindo ? "saindo" : ""}">${card}${m.texto ? `<p>${esc(m.texto)}</p>` : ""}<time>${m.saindo ? "🕓" : hora(m.created_at)}</time></div>`;
+  // Filme que o amigo mandou: dá pra salvar direto daqui.
+  const meu = it && !eu ? store.get(it.key) : null;
+  const acao = !it || eu ? "" : meu ? `<small class="mtem">${meu.status === "seen" ? "✓ Você já viu" : "✓ Tá na sua lista"}</small>`
+    : `<button class="mq" data-mq="${esc(it.key)}">＋ Quero ver</button>`;
+  return `<div class="msg ${eu ? "eu" : "ele"} ${it ? "temcard" : ""} ${m.saindo ? "saindo" : ""}">${card}${acao}${m.texto ? `<p>${esc(m.texto)}</p>` : ""}<time>${m.saindo ? "🕓" : hora(m.created_at)}</time></div>`;
 }
 function desenhaMsgs(rolar) {
   const box = $("#msgs"); if (!box || !chatCom) return;
@@ -1197,6 +1201,10 @@ function desenhaMsgs(rolar) {
     const m = l.find(x => x.item && x.item.key === b.dataset.mk);
     openDetails(store.get(b.dataset.mk) || m.item);
   });
+  box.querySelectorAll("[data-mq]").forEach(b => b.onclick = () => {
+    const m = l.find(x => x.item && x.item.key === b.dataset.mq && x.de !== eu);
+    if (m) queroDaConversa(m);
+  });
   const mais = $("#maisMsgs"); if (mais) mais.onclick = async () => {
     mais.textContent = "Carregando…";
     const alt = box.scrollHeight;
@@ -1204,6 +1212,16 @@ function desenhaMsgs(rolar) {
   };
   if (rolar || perto) box.scrollTop = box.scrollHeight;
   else box.scrollTop = topo;
+}
+// "Quero ver" num filme que o amigo mandou na conversa (é a mesma indicação da aba Amigos).
+function queroDaConversa(m) {
+  const ind = amigos.pendentes().find(i => i.key === m.item.key && i.de === m.de);
+  if (ind) { aceitarInd(ind); return; }
+  if (!store.get(m.item.key) && !store.add(m.item, "want")) { ruim("Não consegui salvar no aparelho."); return; }
+  const it = store.get(m.item.key);
+  if (it && !it.memo) store.setMemo(it.key, `Indicação de ${amigos.nomeDe(m.de)}${m.texto ? ": " + m.texto : ""}`.slice(0, 300));
+  som.salvar();
+  toast(`${m.item.title} foi pro Quero ver 🍿`);
 }
 // Escolher um filme/série da sua lista pra mandar na conversa.
 function escolherFilme() {
@@ -1293,7 +1311,8 @@ function quando(ts) {
 function badge() {
   const b = $('nav.bottom [data-tab="amigos"]'); if (!b) return;
   let s = b.querySelector(".badge");
-  const n = amigos.novas() + chat.naoLidas();
+  // indicação nova de quem já tem mensagem não lida conta uma vez só (é o mesmo filme na conversa)
+  const n = chat.naoLidas() + amigos.pendentes().filter(i => i.estado === "nova" && !chat.naoLidas(i.de)).length;
   push.numeroNoIcone(n);
   if (!n) { if (s) s.remove(); return; }
   if (!s) { s = document.createElement("span"); s.className = "badge"; b.appendChild(s); }
@@ -1308,14 +1327,18 @@ chat.onChange(() => {
   if (tab !== "amigos" || needLogin() || naPergunta()) return;
   if (chatCom) desenhaMsgs(); else if (!amigoAberto) renderAmigos();
 });
+// Filme que chegou pela conversa também é indicação: avisa uma vez só.
+const avisadoNaConversa = new Set();
 chat.onChegou((m, aberta) => {
+  if (m.item) avisadoNaConversa.add(m.de + "|" + m.item.key);
   if (aberta && !document.hidden) { som.bolha(); return; }
   som.vinheta();
   const nome = amigos.nomeDe(m.de).split(" ")[0];
   toast(`💬 ${nome}: ${m.item ? "🎬 " + m.item.title : m.texto}`.slice(0, 90), "Abrir", () => abrirChat(m.de));
 });
 amigos.onNovas(lista => {
-  if (tab === "amigos" && !amigoAberto) return;
+  lista = lista.filter(i => !avisadoNaConversa.has(i.de + "|" + i.key));
+  if (!lista.length || (tab === "amigos" && !amigoAberto && !chatCom)) return;
   const i = lista[0];
   const txt = lista.length > 1 ? `🎬 Chegaram ${lista.length} indicações de amigos` : `🎬 ${i.nome} te indicou ${i.data.title}`;
   som.vinheta();
@@ -1702,6 +1725,7 @@ function sheetIndicar(m) {
     <div class="lbl">Recado (opcional)</div>
     <textarea class="memo" id="recado" rows="2" maxlength="280" placeholder="Ex: assiste que é a sua cara kkk"></textarea>
     <button class="btn gold wide" id="manda">🍿 Mandar indicação</button>
+    <p class="tiny center">Chega nas indicações e na conversa de vocês.</p>
     <button class="btn ghost wide" id="link">🔗 Mandar link pelo WhatsApp</button>
   </div>`);
   sheet.querySelectorAll("[data-pk]").forEach(b => b.onclick = () => {

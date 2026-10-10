@@ -35,17 +35,50 @@ declare r public.mensagens;
 begin
   if auth.uid() is null or not public.sao_amigos(auth.uid(), amigo) then raise exception 'nao sao amigos'; end if;
   txt := left(trim(coalesce(txt, '')), 1000);
-  if dados is not null and (octet_length(dados::text) > 3000 or coalesce(dados->>'key', '') !~ '^(movie|tv):\d+$') then
+  if dados is not null and (jsonb_typeof(dados) <> 'object' or octet_length(dados::text) > 3000 or coalesce(dados->>'key', '') !~ '^(movie|tv):\d+$') then
     raise exception 'dados invalidos';
   end if;
   if txt = '' and dados is null then raise exception 'mensagem vazia'; end if;
-  -- freio contra enxurrada: no máximo 30 mensagens por minuto
-  if (select count(*) from public.mensagens where de = auth.uid() and created_at > now() - interval '1 minute') >= 30 then
+  -- freio contra enxurrada: no máximo 30 mensagens por minuto e 1500 por dia
+  if (select count(*) from public.mensagens where de = auth.uid() and created_at > now() - interval '1 minute') >= 30
+     or (select count(*) from public.mensagens where de = auth.uid() and created_at > now() - interval '1 day') >= 1500 then
     raise exception 'muitas mensagens';
   end if;
   insert into public.mensagens (de, para, texto, item) values (auth.uid(), amigo, txt, dados) returning * into r;
+  -- filme mandado na conversa também vira indicação (aparece em "Indicações pra você")
+  if dados is not null then
+    insert into public.indicacoes (de, para, key, data, msg)
+    values (auth.uid(), amigo, dados->>'key', dados, left(txt, 280))
+    on conflict (de, para, key) do update
+      set data = excluded.data, msg = excluded.msg, estado = 'nova', created_at = now();
+  end if;
   return r;
 end $$;
+
+-- Indicar (versão nova; substitui a do amigos.sql): além de ir pra "Indicações pra você",
+-- aparece na conversa dos dois como card do filme + recado. Indicação e filme na conversa
+-- são a mesma coisa, só mudam de onde a pessoa mandou.
+create or replace function public.indicar(para_quem uuid, chave text, dados jsonb, mensagem text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null or not public.sao_amigos(auth.uid(), para_quem) then raise exception 'nao sao amigos'; end if;
+  if chave !~ '^(movie|tv):\d+$' or jsonb_typeof(dados) <> 'object' or octet_length(dados::text) > 4000 then raise exception 'dados invalidos'; end if;
+  -- freio: no máximo 60 indicações por hora
+  if (select count(*) from public.indicacoes where de = auth.uid() and created_at > now() - interval '1 hour') >= 60 then
+    raise exception 'muitas indicacoes';
+  end if;
+  dados := dados || jsonb_build_object('key', chave);
+  mensagem := left(trim(coalesce(mensagem, '')), 280);
+  insert into public.indicacoes (de, para, key, data, msg)
+  values (auth.uid(), para_quem, chave, dados, mensagem)
+  on conflict (de, para, key) do update
+    set data = excluded.data, msg = excluded.msg, estado = 'nova', created_at = now();
+  if octet_length(dados::text) < 3000 then
+    insert into public.mensagens (de, para, texto, item) values (auth.uid(), para_quem, mensagem, dados);
+  end if;
+end $$;
+revoke all on function public.indicar(uuid, text, jsonb, text) from public, anon;
+grant execute on function public.indicar(uuid, text, jsonb, text) to authenticated;
 
 -- Conversa com um amigo (50 por vez; "antes" = id pra carregar as mais antigas).
 create or replace function public.conversa(amigo uuid, antes bigint default null) returns setof public.mensagens
@@ -179,6 +212,8 @@ create or replace function public.avisa_msg() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare seg text; base text;
 begin
+  -- mensagem com filme: quem avisa é a indicação (senão chegariam dois avisos)
+  if new.item is not null then return new; end if;
   select decrypted_secret into seg from vault.decrypted_secrets where name = 'push_segredo';
   select decrypted_secret into base from vault.decrypted_secrets where name = 'push_url';
   if seg is not null and base is not null then

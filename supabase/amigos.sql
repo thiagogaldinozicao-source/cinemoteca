@@ -167,6 +167,7 @@ $$;
 
 
 -- Mandar indicação (pode mandar de novo o mesmo: volta a aparecer como nova).
+-- ATENÇÃO: o chat.sql troca esta função por uma versão que também põe a indicação na conversa.
 create or replace function public.indicar(para_quem uuid, chave text, dados jsonb, mensagem text) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
