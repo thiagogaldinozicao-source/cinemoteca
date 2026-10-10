@@ -1986,8 +1986,11 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
   // avisa (não recarrega sozinho pra não perder o que a pessoa tá fazendo).
   const jaTinha = !!navigator.serviceWorker.controller;
   let avisou = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
+  const minhaVersao = new URL(import.meta.url).searchParams.get("v");
+  navigator.serviceWorker.addEventListener("controllerchange", async () => {
     if (!jaTinha || avisou) return;
+    // Se a gaveta que ficou é a desta versão, a tela já é a nova: não precisa avisar.
+    try { if (minhaVersao && (await caches.keys()).includes("cinemoteca-v" + minhaVersao)) return; } catch (e) { /* avisa mesmo assim */ }
     avisou = true;
     toast("✨ Tem versão nova da Cinemoteca", "Atualizar", () => location.reload(), 12000);
   });
