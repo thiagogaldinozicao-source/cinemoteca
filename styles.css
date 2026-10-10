@@ -86,9 +86,6 @@ nav.bottom button.on .ni{ filter:none; opacity:1; transform:translateY(-1px); }
 .rtitle{ font-weight:700; font-size:15px; line-height:1.25; }
 .rmeta{ font-size:12px; color:var(--dim); margin:3px 0 6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mine{ color:var(--gold); font-weight:600; }
-.mv{ display:flex; flex-direction:column; gap:4px; }
-.mv button{ width:30px; height:28px; border-radius:8px; background:#ffffff0c; color:var(--dim); font-size:11px; }
-.mv button:disabled{ opacity:.25; }
 .quick{ min-width:44px; height:36px; padding:0 12px; border-radius:100px; background:var(--gold); color:#1a1400; font-weight:800; font-size:14px; white-space:nowrap; }
 .quick.done{ background:#ffffff10; color:var(--green); font-size:11.5px; font-weight:600; }
 
@@ -171,7 +168,6 @@ body.sheet-open .sheet{ transform:translateY(0); }
 /* ajustes */
 .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 16px 16px; margin-bottom:12px; }
 .card .lbl{ margin-top:0; }
-.card input[type=password]{ width:100%; background:#0d0d14; border:1px solid var(--line); border-radius:12px; padding:12px 14px; color:var(--text); font-size:16px; }
 .row2{ display:flex; gap:8px; margin-top:10px; }
 .row2 .btn{ flex:1; }
 
@@ -348,7 +344,6 @@ nav.bottom button{ position:relative; }
 .amigos, .inds{ list-style:none; display:flex; flex-direction:column; gap:8px; }
 .amg{ display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 12px; cursor:pointer; }
 .amg:active{ background:var(--card2); }
-.chev{ color:var(--dim); font-size:22px; }
 .ind{ display:flex; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px; cursor:pointer; }
 .ind.nova{ border-color:var(--gold); box-shadow:0 0 0 1px var(--gold-dim) inset; }
 .quem{ font-size:12.5px; margin-top:5px; line-height:1.45; }

@@ -388,7 +388,7 @@ function desenhaFila() {
   const nomeOutro = listSeg === "want" ? "Já vi" : "Quero ver";
   box.innerHTML = `
     ${vendo.length ? continuarHTML(vendo) : ""}
-    ${src.length ? `<ol class="queue">${src.map((m, k) => rowHTML(m, k, src.length)).join("")}</ol>`
+    ${src.length ? `<ol class="queue">${src.map((m, k) => rowHTML(m, k)).join("")}</ol>`
       : `<p class="muted center pad">${q ? `Não achei "${esc(listQ.trim())}" em ${listSeg === "want" ? "Quero ver" : "Já vi"}.` : listSeg === "want" ? "Nada aqui nesse filtro." : "Quando marcar algo como visto, aparece aqui."}</p>`}
     ${outro ? `<button class="btn ghost wide" id="lqOutro">Tem ${outro} em ${nomeOutro} ›</button>` : ""}
   `;
@@ -419,7 +419,7 @@ function desenhaFila() {
     });
   });
 }
-function rowHTML(m, k, n) {
+function rowHTML(m, k) {
   const seen = m.status === "seen";
   return `
     <li class="row" data-key="${esc(m.key)}">
@@ -2024,11 +2024,6 @@ async function importTitles(titles) {
       }
       done++; show();
     }
-  }
-  if (typeof store.addImported !== "function" || typeof tmdb.findBest !== "function") {
-    importing = false;
-    box.innerHTML = "⚠️ O app está numa versão antiga guardada no celular. Fecha a aba, abre de novo e tenta outra vez.";
-    return;
   }
   try { await Promise.all([worker(), worker(), worker(), worker()]); }
   finally { store.flush(); importing = false; }

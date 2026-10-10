@@ -76,7 +76,6 @@ export async function abrir(amigo) {
   } catch (e) { /* sem internet: fica o que tem guardado */ }
 }
 export function fechar() { aberta = null; }
-export function abertaCom() { return aberta; }
 
 export async function maisAntigas(amigo) {
   const l = getConversa(amigo);

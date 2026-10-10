@@ -195,10 +195,6 @@ export function recuou() { marca(); tom(900, { dur: 0.04, vol: 0.03, ate: 600 })
 export function solta() { marca(); tom(300, { dur: 0.09, vol: 0.04, ate: 420, tipo: "triangle" }); }
 
 // ---------- amigos e conta ----------
-export function ding() { // chegou indicação / aviso bom
-  marca(); vib(2);
-  tom(1318.51, { dur: 0.35, vol: 0.09, fx: true }); tom(987.77, { t: 0.14, dur: 0.5, vol: 0.09, fx: true });
-}
 export function amizade() { // amigo novo: acorde quentinho subindo
   marca(); vib(2);
   [392, 493.88, 587.33, 783.99].forEach((f, i) => tom(f, { t: i * 0.06, dur: 0.7, vol: 0.07, fx: true }));

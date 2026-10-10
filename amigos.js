@@ -26,10 +26,8 @@ export function onNovas(fn) { novasListeners.add(fn); }
 export function onEntrou(fn) { entrouListeners.add(fn); }
 export function getPerfil() { return perfil; }
 export function getAmigos() { return amigos; }
-export function getCaixa() { return caixa; }
 export function falhou() { return erro; }
 export function pendentes() { return (caixa || []).filter(i => i.estado !== "aceita"); }
-export function novas() { return (caixa || []).filter(i => i.estado === "nova").length; }
 export function nomeDe(id) { const a = (amigos || []).find(x => x.user_id === id); return a ? a.nome : "Amigo"; }
 export function fotoDe(id) { const a = (amigos || []).find(x => x.user_id === id); return a ? a.foto : null; }
 export const fotoUrl = cloud.fotoUrl;
