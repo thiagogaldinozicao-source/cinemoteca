@@ -90,13 +90,24 @@ export function applyRemote(rows, pulledUntil) {
   for (const r of rows) {
     if (!r || !r.key || state.dirty[r.key]) continue;
     if (r.deleted) { if (state.items[r.key]) { delete state.items[r.key]; n++; } }
-    else if (r.data && r.data.id && r.data.type) { state.items[r.key] = { ...limpa(r.data), key: r.key }; n++; }
+    else if (r.data && r.data.id && r.data.type) {
+      // só conta como mudança se veio diferente do que já tem (senão a tela redesenha à toa)
+      const novo = { ...limpa(r.data), key: r.key };
+      if (!igual(state.items[r.key], novo)) { state.items[r.key] = novo; n++; }
+    }
   }
   if (pulledUntil) state.lastPull = pulledUntil;
   persist();
   if (n) emit();
   return n;
 }
+// Compara dois títulos sem ligar pra ordem dos campos.
+function canon(v) {
+  if (Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
+  if (v && typeof v === "object") return "{" + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}";
+  return JSON.stringify(v === undefined ? null : v);
+}
+function igual(a, b) { return !!a && !!b && canon(a) === canon(b); }
 // Junta a lista antiga do aparelho com a da conta, sem perder nada.
 export function mergeIn(items) {
   let added = 0;

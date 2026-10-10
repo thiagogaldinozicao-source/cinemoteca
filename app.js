@@ -172,7 +172,8 @@ store.onChange(() => {
     return;
   }
   if (!needLogin() && tab === "lista") renderLista();
-  else if (!needLogin() && tab === "amigos") renderAmigos();
+  // Na conversa a lista não aparece: não redesenha (senão apaga o que a pessoa tá digitando).
+  else if (!needLogin() && tab === "amigos" && !chatCom) renderAmigos();
 });
 
 // Entrou/saiu da conta: redesenha tudo. Só mudou o status da nuvem: atualiza Ajustes.
