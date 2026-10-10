@@ -2,7 +2,7 @@
 // enquanto o app tá aberto; com o app fechado quem avisa é a notificação (push.js).
 // Guarda as últimas mensagens de cada conversa no aparelho pra abrir sem internet.
 import * as cloud from "./cloud.js?v=29";
-import { limpa } from "./store.js?v=29";
+import { limpa, cartao } from "./store.js?v=29";
 
 let conversas = new Map(); // amigo -> { texto, item, de, created_at, naolidas }
 const msgs = new Map();    // amigo -> [mensagens]
@@ -86,14 +86,8 @@ export async function maisAntigas(amigo) {
   return r.length;
 }
 
-// Card de filme: só o necessário pra mostrar e abrir os detalhes.
-function enxuto(m) {
-  const o = {};
-  for (const f of ["id", "key", "type", "title", "year", "poster", "vote", "votes"]) if (m[f] != null) o[f] = m[f];
-  return o;
-}
 export async function mandar(amigo, texto, item) {
-  const r = limpaMsg(await cloud.rpc("mandar_msg", { amigo, txt: texto || "", dados: item ? enxuto(item) : null }));
+  const r = limpaMsg(await cloud.rpc("mandar_msg", { amigo, txt: texto || "", dados: item ? cartao(item) : null }));
   junta(amigo, [r]); emit();
   return r;
 }

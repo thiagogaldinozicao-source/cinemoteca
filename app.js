@@ -1614,8 +1614,10 @@ async function abrirAmigo(id, nome, foto) {
   try {
     const [d, ind] = await Promise.all([amigos.listaDo(id), amigos.indiqueiPra(id).catch(() => [])]);
     if (amigoAberto !== alvo) return;
-    d.items = (d.items || []).map(store.limpa).filter(i => i && i.key);
-    alvo.dados = d; alvo.indiquei = (ind || []).map(x => ({ ...x, data: store.limpa(x.data) })); alvo.nome = d.nome || alvo.nome; if (d.foto !== undefined) alvo.foto = d.foto;
+    d.items = (Array.isArray(d.items) ? d.items : []).map(store.limpa).filter(i => i && i.key);
+    // gostos do amigo também vêm de fora: só lista de textos
+    d.gostos = d.gostos && Array.isArray(d.gostos.generos) ? { generos: d.gostos.generos.filter(g => typeof g === "string").slice(0, 30) } : null;
+    alvo.dados = d; alvo.indiquei = (Array.isArray(ind) ? ind : []).map(x => ({ ...x, data: store.limpaKey(x.key, x.data) })); alvo.nome = d.nome || alvo.nome; if (d.foto !== undefined) alvo.foto = d.foto;
   } catch (e) {
     if (amigoAberto !== alvo) return;
     alvo.erro = true;

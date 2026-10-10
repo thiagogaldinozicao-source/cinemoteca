@@ -111,14 +111,16 @@ function igual(a, b) { return !!a && !!b && canon(a) === canon(b); }
 // Junta a lista antiga do aparelho com a da conta, sem perder nada.
 export function mergeIn(items) {
   let added = 0;
-  for (const [k, v] of Object.entries(items || {})) {
-    if (!v || !v.id || !v.type || !v.title) continue;
+  for (const v0 of Object.values(items || {})) {
+    if (!v0 || !v0.id || !v0.type || !v0.title) continue;
+    const v = limpa(v0), k = v.key;
+    if (!k) continue;
     const cur = state.items[k];
-    if (!cur) { state.items[k] = { ...limpa(v), key: k }; touch(k); added++; continue; }
+    if (!cur) { state.items[k] = v; touch(k); added++; continue; }
     let upd = false;
     if (!cur.memo && v.memo) { cur.memo = v.memo; upd = true; }
     if (!cur.note && v.note) { cur.note = v.note; upd = true; }
-    if (!cur.prog && v.prog) { cur.prog = limpaProg(v.prog); upd = !!cur.prog || upd; }
+    if (!cur.prog && v.prog) { cur.prog = v.prog; upd = true; }
     if (cur.status === "want" && v.status === "seen") { cur.status = "seen"; cur.seenAt = v.seenAt || Date.now(); upd = true; }
     if (upd) touch(k);
   }
@@ -127,23 +129,52 @@ export function mergeIn(items) {
 }
 
 // ---------- lista ----------
-// Dado que vem de fora (lista de amigo, indicação, backup, nuvem): só passa no
-// formato certo. Capa fora do padrão do TMDB ("/abc.jpg") vira vazio — senão um
-// texto malicioso na capa viraria código rodando no app. Nota/votos viram número.
+// Dado que vem de fora (lista de amigo, indicação, conversa, backup, nuvem): só passa
+// no formato certo e só os campos que o app conhece (o resto é jogado fora).
+// Capa fora do padrão do TMDB ("/abc.jpg") vira vazio — senão um texto malicioso na
+// capa viraria código rodando no app. Números viram número, texto vira texto com limite,
+// e a chave ("movie:123") é sempre montada a partir do tipo e do id.
+const CHAVE = /^(movie|tv):(\d{1,9})$/;
 export function limpa(m) {
   if (!m || typeof m !== "object") return m;
   const num = v => (v === "" || v == null || !isFinite(+v) ? null : +v);
+  const int = (v, max) => { const n = Math.round(+v); return isFinite(n) && n > 0 && n <= max ? n : 0; };
   const img = p => (typeof p === "string" && /^\/[\w.-]+$/.test(p) ? p : "");
-  return {
-    ...m, title: String(m.title || "Sem título"), year: String(m.year || "").slice(0, 4),
-    original: m.original ? String(m.original) : "", poster: img(m.poster), backdrop: img(m.backdrop),
+  const type = m.type === "tv" ? "tv" : "movie";
+  const id = int(m.id, 999999999);
+  const o = {
+    key: id ? type + ":" + id : "", id, type,
+    title: String(m.title || "Sem título").slice(0, 300), year: String(m.year || "").slice(0, 4),
+    original: m.original ? String(m.original).slice(0, 300) : "", poster: img(m.poster), backdrop: img(m.backdrop),
     status: m.status === "seen" ? "seen" : "want",
-    vote: num(m.vote), votes: num(m.votes) || 0, note: num(m.note) || 0,
-    memo: m.memo ? String(m.memo).slice(0, 300) : "",
-    genreIds: Array.isArray(m.genreIds) ? m.genreIds.map(Number).filter(isFinite) : [],
+    vote: num(m.vote), votes: num(m.votes) || 0, note: Math.max(0, Math.min(10, Math.round(num(m.note) || 0))),
+    memo: typeof m.memo === "string" ? m.memo.slice(0, 300) : "",
+    genreIds: Array.isArray(m.genreIds) ? m.genreIds.map(Number).filter(isFinite).slice(0, 12) : [],
     prog: limpaProg(m.prog),
-    temps: Array.isArray(m.temps) ? m.temps.slice(0, 80).map(n => Math.max(0, Math.min(999, Math.round(+n) || 0))) : undefined,
   };
+  if (Array.isArray(m.temps)) o.temps = m.temps.slice(0, 80).map(n => Math.max(0, Math.min(999, Math.round(+n) || 0)));
+  if (m.addedAt != null) o.addedAt = num(m.addedAt) || 0;
+  if ("seenAt" in m) o.seenAt = num(m.seenAt);
+  if (int(m.runtime, 5000)) o.runtime = int(m.runtime, 5000);
+  if (int(m.epRuntime, 5000)) o.epRuntime = int(m.epRuntime, 5000);
+  if (num(m.metaAt)) o.metaAt = num(m.metaAt);
+  if (m.overview) o.overview = String(m.overview).slice(0, 3000);
+  return o;
+}
+// Igual ao limpa, mas o tipo e o id vêm de uma chave que o servidor já conferiu
+// (indicação: a chave da linha manda, não o que veio dentro dos dados).
+export function limpaKey(key, m) {
+  const x = CHAVE.exec(key || "");
+  const base = m && typeof m === "object" ? m : {};
+  return x ? limpa({ ...base, type: x[1], id: +x[2] }) : limpa(base);
+}
+// Card de filme pra mandar pra um amigo (indicação ou conversa): só o necessário.
+export function cartao(m) {
+  const l = limpa(m), o = {};
+  for (const f of ["id", "key", "type", "title", "original", "year", "poster", "backdrop", "vote", "votes", "genreIds"]) {
+    if (l[f] != null && l[f] !== "" && !(Array.isArray(l[f]) && !l[f].length)) o[f] = l[f];
+  }
+  return o;
 }
 // Onde parou na série: { s: temporada, e: último episódio visto, at: quando }.
 function limpaProg(p) {
@@ -166,18 +197,20 @@ function slim(m0) {
 }
 
 export function add(media, status = "want") {
-  const cur = state.items[media.key];
+  const novo = slim(media), key = novo.key;
+  if (!key) return false;
+  const cur = state.items[key];
   const now = Date.now();
-  state.items[media.key] = {
+  state.items[key] = {
     ...(cur || {}),
-    ...slim(media),
+    ...novo,
     status,
     addedAt: cur ? cur.addedAt : now,
     seenAt: status === "seen" ? (cur && cur.seenAt) || now : null,
     note: cur ? cur.note || 0 : 0,
     memo: cur ? cur.memo || "" : "",
   };
-  touch(media.key);
+  touch(key);
   return changed();
 }
 export function setStatus(key, status) {
@@ -242,13 +275,14 @@ export function importJSON(text) {
 // Importa um título já achado no TMDB, sem sobrescrever o que já existe.
 // Salva no aparelho uma vez só no fim (flush), pra ser rápido com listas grandes.
 export function addImported(media, { status = "want", memo = "", note = 0 } = {}) {
-  if (state.items[media.key]) return false;
+  const novo = slim(media), key = novo.key;
+  if (!key || state.items[key]) return false;
   const now = Date.now();
-  state.items[media.key] = {
-    ...slim(media), status, addedAt: now, seenAt: status === "seen" ? now : null,
-    note: note || 0, memo: String(memo || "").slice(0, 300),
+  state.items[key] = {
+    ...novo, status, addedAt: now, seenAt: status === "seen" ? now : null,
+    note: Math.max(0, Math.min(10, Math.round(+note) || 0)), memo: String(memo || "").slice(0, 300),
   };
-  touch(media.key);
+  touch(key);
   return true;
 }
 // Duração e gêneros (pro "O que ver agora?"). save=false junta várias antes de salvar.

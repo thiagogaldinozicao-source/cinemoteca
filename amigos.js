@@ -1,7 +1,7 @@
 // Amigos e indicações (tudo via funções do Supabase, que conferem a amizade).
 // Guarda uma cópia no aparelho pra aba Amigos abrir mesmo sem internet.
 import * as cloud from "./cloud.js?v=29";
-import { limpa } from "./store.js?v=29";
+import { limpaKey, cartao } from "./store.js?v=29";
 import * as chat from "./chat.js?v=29";
 
 let perfil = null;   // { nome, codigo }
@@ -43,7 +43,7 @@ export function reset() { perfil = amigos = caixa = null; erro = false; chat.res
 let carregando = null;
 export function carregar() {
   if (!uid()) return Promise.resolve();
-  if (!perfil) { perfil = ler("perfil"); amigos = ler("amigos"); caixa = (ler("caixa") || []).map(i => ({ ...i, data: limpa(i.data) })); chat.carregarCache(); if (perfil) emit(); }
+  if (!perfil) { perfil = ler("perfil"); amigos = ler("amigos"); caixa = (ler("caixa") || []).map(i => ({ ...i, data: limpaKey(i.key, i.data) })); chat.carregarCache(); if (perfil) emit(); }
   if (carregando) return carregando;
   carregando = (async () => {
     try {
@@ -60,7 +60,7 @@ export function carregar() {
 }
 function aplicar(r) {
   amigos = (r && r.amigos) || [];
-  caixa = ((r && r.caixa) || []).map(i => ({ ...i, data: limpa(i.data) }));
+  caixa = ((r && r.caixa) || []).map(i => ({ ...i, data: limpaKey(i.key, i.data) }));
   gravar("amigos", amigos); gravar("caixa", caixa);
   if (r && r.conversas) chat.aplicar(r.conversas);
   chat.iniciar();
@@ -165,15 +165,9 @@ export async function desfazer(id) {
 export function listaDo(id) { return cloud.rpc("lista_do_amigo", { amigo: id }); }
 export function indiqueiPra(id) { return cloud.rpc("indiquei_pra", { amigo: id }); }
 
-// Só o necessário pra mostrar o card e abrir os detalhes.
-function enxuto(m) {
-  const o = {};
-  for (const f of ["id", "key", "type", "title", "original", "year", "poster", "backdrop", "vote", "votes", "genreIds"]) if (m[f] != null) o[f] = m[f];
-  return o;
-}
 export async function indicar(ids, m, msg) {
-  const dados = enxuto(m);
-  await Promise.all(ids.map(id => cloud.rpc("indicar", { para_quem: id, chave: m.key, dados, mensagem: msg || "" })));
+  const dados = cartao(m);
+  await Promise.all(ids.map(id => cloud.rpc("indicar", { para_quem: id, chave: dados.key, dados, mensagem: msg || "" })));
 }
 
 async function marcar(ids, novo) {
