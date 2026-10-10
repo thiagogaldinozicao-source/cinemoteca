@@ -1371,11 +1371,7 @@ function renderAmigos() {
       </div>
     </div>
     ${avisoBannerHTML()}
-    <div class="row2">
-      <button class="btn gold" id="convidar">📲 Chamar amigo</button>
-      <button class="btn" id="verQr">📷 Meu QR code</button>
-    </div>
-    <button class="btn ghost wide" id="temCod">🔑 Tenho o código de um amigo</button>
+    <button class="btn gold wide" id="addAmigo">＋ Adicionar amigo</button>
 
     ${caixa.length ? `<div class="lbl">Indicações pra você <b class="cnt">${caixa.length}</b></div>
       <ul class="inds">${caixa.map(indHTML).join("")}</ul>` : ""}
@@ -1403,9 +1399,7 @@ function renderAmigos() {
     if (!v || v === p.nome) return;
     try { await amigos.salvarNome(v); som.ok(); toast("Nome trocado"); } catch (e) { ruim("Sem internet agora. Tenta de novo."); }
   };
-  $("#convidar").onclick = convidar;
-  $("#temCod").onclick = sheetCodigo;
-  $("#verQr").onclick = sheetQr;
+  $("#addAmigo").onclick = sheetAdicionar;
   $("#minhaFoto").onclick = sheetFoto;
   view.querySelectorAll(".amg").forEach(li => li.onclick = e => {
     const cb = e.target.closest("[data-chat]");
@@ -1460,6 +1454,20 @@ function indicadoPorHTML(m) {
 }
 
 // ---------- convite ----------
+// Um botão só na aba Amigos; aqui dentro ficam os três jeitos de adicionar.
+function sheetAdicionar() {
+  const p = amigos.getPerfil(); if (!p) return;
+  openSheet(`<div class="dbody pad2">
+    <h2 class="h">Adicionar amigo</h2>
+    <p class="muted small">Manda seu convite, mostra o QR code ou digita o código de quem já usa.<br>Seu código: <b class="cod">${esc(amigos.codigoFmt(p.codigo))}</b></p>
+    <button class="btn gold wide" id="aConv">📲 Mandar convite</button>
+    <button class="btn wide" id="aQr">📷 Mostrar meu QR code</button>
+    <button class="btn ghost wide" id="aCod">🔑 Tenho o código de um amigo</button>
+  </div>`);
+  $("#aConv", sheet).onclick = () => { closeSheet(true); convidar(); };
+  $("#aQr", sheet).onclick = sheetQr;
+  $("#aCod", sheet).onclick = sheetCodigo;
+}
 async function convidar() {
   const p = amigos.getPerfil(); if (!p) return;
   const url = amigos.linkConvite();
