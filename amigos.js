@@ -1,8 +1,8 @@
 // Amigos e indicações (tudo via funções do Supabase, que conferem a amizade).
 // Guarda uma cópia no aparelho pra aba Amigos abrir mesmo sem internet.
-import * as cloud from "./cloud.js?v=29";
-import { limpaKey, cartao } from "./store.js?v=29";
-import * as chat from "./chat.js?v=29";
+import * as cloud from "./cloud.js?v=30";
+import { limpaKey, cartao } from "./store.js?v=30";
+import * as chat from "./chat.js?v=30";
 
 let perfil = null;   // { nome, codigo }
 let amigos = null;   // [{ user_id, nome, desde }]

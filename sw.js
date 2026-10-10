@@ -3,11 +3,11 @@
 // Versão nova: o navegador vê que este arquivo mudou, baixa tudo pra uma gaveta nova
 // e só então troca. O app aberto recebe o aviso "tem versão nova" (ver fim do app.js).
 // Capas dos filmes também ficam guardadas (a lista aparece bonita mesmo offline).
-const CACHE = "cinemoteca-v29";
+const CACHE = "cinemoteca-v30";
 const IMGS = "cinemoteca-capas";
 const FONTES = "cinemoteca-fontes";
 const MAX_IMGS = 600;
-const V = "?v=29";
+const V = "?v=30";
 const SHELL = ["./", "index.html", "styles.css" + V, "app.js" + V, "tmdb.js" + V, "store.js" + V, "now.js" + V, "config.js" + V, "cloud.js" + V, "gostos.js" + V, "amigos.js" + V, "sons.js" + V, "chat.js" + V, "push.js" + V, "vendor/supabase.js" + V, "vendor/qrcode.js" + V,
   "manifest.webmanifest?v=2", "icons/favicon.svg?v=2", "icons/favicon-32.png?v=2", "icons/apple-touch-icon.png?v=2", "icons/icon-192.png?v=2", "icons/icon-512.png?v=2", "icons/icon-maskable-512.png?v=2"];
 

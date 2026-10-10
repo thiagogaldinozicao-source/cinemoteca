@@ -1,7 +1,7 @@
 // Avisos no celular (notificação), mesmo com o app fechado.
 // No iPhone só funciona com o app salvo na tela de início (iOS 16.4+) e
 // o pedido de permissão TEM que sair de um toque da pessoa.
-import * as cloud from "./cloud.js?v=29";
+import * as cloud from "./cloud.js?v=30";
 
 const PUB = (window.CINEMOTECA_CONFIG || {}).VAPID_PUBLIC || "";
 const PREF = "cinemoteca_avisos";
