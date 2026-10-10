@@ -253,6 +253,16 @@ function editarGostos() { editandoGostos = true; escolha = null; closeSheet(); r
 // ---------- ENTRAR (login por código no e-mail) ----------
 let loginEmail = "";
 let loginStep = "email";
+// Guarda o passo do código: no iPhone o app pode recarregar enquanto a pessoa vai no e-mail pegar o código.
+const LOGIN_KEY = "cinemoteca_login";
+try {
+  const l = JSON.parse(localStorage.getItem(LOGIN_KEY) || "null");
+  if (l && typeof l.email === "string" && Date.now() - l.at < 20 * 60e3) { loginEmail = l.email; loginStep = "code"; }
+} catch (e) { /* ignora */ }
+function guardaLogin(on) {
+  try { on ? localStorage.setItem(LOGIN_KEY, JSON.stringify({ email: loginEmail, at: Date.now() })) : localStorage.removeItem(LOGIN_KEY); }
+  catch (e) { /* ignora */ }
+}
 function renderLogin() {
   document.querySelectorAll("nav.bottom button").forEach(b => b.classList.remove("on"));
   if (loginStep === "email") {
@@ -273,7 +283,7 @@ function renderLogin() {
       const v = email.value.trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { ruim("Confere o e-mail."); return; }
       const b = $("#send"); b.disabled = true; b.textContent = "Enviando…";
-      try { await cloud.sendCode(v); loginEmail = v; loginStep = "code"; renderLogin(); }
+      try { await cloud.sendCode(v); loginEmail = v; loginStep = "code"; guardaLogin(true); renderLogin(); }
       catch (err) { ruim(loginError(err)); b.disabled = false; b.textContent = "Receber código"; }
     };
     if (!loginEmail) setTimeout(() => email.focus(), 50);
@@ -299,14 +309,14 @@ function renderLogin() {
     const v = code.value.replace(/\D/g, "");
     if (v.length < 6) { ruim("O código tem 6 números (ou mais)."); return; }
     const b = $("#enter"); b.disabled = true; b.textContent = "Entrando…";
-    try { await cloud.verifyCode(loginEmail, v); som.entrou(); toast("Pronto, você entrou! 🎉"); loginStep = "email"; }
+    try { await cloud.verifyCode(loginEmail, v); som.entrou(); toast("Pronto, você entrou! 🎉"); loginStep = "email"; guardaLogin(false); }
     catch (err) { ruim("Código errado ou vencido. Confere ou pede outro."); b.disabled = false; b.textContent = "Entrar"; }
   };
   $("#fCode").onsubmit = e => { e.preventDefault(); submit(); };
   $("#again").onclick = async () => {
-    try { await cloud.sendCode(loginEmail); som.enviar(); toast("Mandei outro código."); } catch (err) { ruim(loginError(err)); }
+    try { await cloud.sendCode(loginEmail); guardaLogin(true); som.enviar(); toast("Mandei outro código."); } catch (err) { ruim(loginError(err)); }
   };
-  $("#other").onclick = () => { som.volta(); loginStep = "email"; renderLogin(); };
+  $("#other").onclick = () => { som.volta(); loginStep = "email"; guardaLogin(false); renderLogin(); };
 }
 function loginError(err) {
   const m = String((err && err.message) || "").toLowerCase();
