@@ -77,3 +77,18 @@ alter table public.items drop constraint if exists items_data_tam;
 alter table public.items add constraint items_data_tam check (octet_length(data::text) < 8000);
 alter table public.gostos drop constraint if exists gostos_data_tam;
 alter table public.gostos add constraint gostos_data_tam check (octet_length(data::text) < 4000);
+
+-- Teto por conta: no máximo 3000 títulos (alterar um que já existe sempre pode).
+-- Com o cadastro aberto, é o que impede alguém de encher o banco grátis.
+create or replace function public.items_teto() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if (select count(*) from public.items where user_id = new.user_id) >= 3000
+     and not exists (select 1 from public.items where user_id = new.user_id and key = new.key) then
+    raise exception 'lista cheia';
+  end if;
+  return new;
+end $$;
+revoke all on function public.items_teto() from public, anon, authenticated;
+create or replace trigger items_teto before insert on public.items
+for each row execute function public.items_teto();

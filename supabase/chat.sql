@@ -130,6 +130,16 @@ begin
      or coalesce(assinatura->'keys'->>'p256dh', '') = '' or coalesce(assinatura->'keys'->>'auth', '') = '' then
     raise exception 'assinatura invalida';
   end if;
+  -- no máximo 10 aparelhos com aviso por conta: o mais parado sai da fila
+  if not exists (select 1 from public.push_subs where endpoint = ep)
+     and (select count(*) from public.push_subs where user_id = auth.uid() and ativo) >= 10 then
+    update public.push_subs set ativo = false where endpoint =
+      (select endpoint from public.push_subs where user_id = auth.uid() and ativo order by visto_em asc limit 1);
+  end if;
+  if (select count(*) from public.push_subs where user_id = auth.uid()) >= 40
+     and not exists (select 1 from public.push_subs where endpoint = ep) then
+    raise exception 'muitos aparelhos';
+  end if;
   quais := jsonb_build_object(
     'chat', coalesce((quais->>'chat')::boolean, true),
     'ind', coalesce((quais->>'ind')::boolean, true),
@@ -194,6 +204,18 @@ begin
   return new;
 end $$;
 create or replace trigger avisa_ind after insert or update on public.indicacoes for each row execute function public.avisa_ind();
+revoke all on function public.avisa_msg() from public, anon, authenticated;
+revoke all on function public.avisa_ind() from public, anon, authenticated;
+
+-- Confere de novo as permissões (rodar este trecho sempre que recriar as funções acima:
+-- função nova nasce liberada pra todo mundo).
+revoke all on function public.mandar_msg(uuid, text, jsonb) from public, anon;
+revoke all on function public.conversa(uuid, bigint) from public, anon;
+revoke all on function public.ler_conversa(uuid) from public, anon;
+revoke all on function public.minhas_conversas() from public, anon;
+revoke all on function public.salvar_push(jsonb, jsonb) from public, anon;
+revoke all on function public.tirar_push(text) from public, anon;
+revoke all on function public.push_config() from public, anon, authenticated;
 revoke all on function public.avisa_msg() from public, anon, authenticated;
 revoke all on function public.avisa_ind() from public, anon, authenticated;
 
