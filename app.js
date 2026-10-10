@@ -695,6 +695,41 @@ function closeSheet(mudo) {
   document.body.classList.remove("sheet-open");
 }
 sheetBg.onclick = () => closeSheet();
+// Puxar a folha pra baixo fecha (só no dedo, no celular, e só com ela rolada até o topo).
+(() => {
+  const largo = matchMedia("(min-width:760px)");
+  let y0 = 0, x0 = 0, dy = 0, t0 = 0, fase = null; // null | "talvez" | "puxando"
+  sheet.addEventListener("touchstart", e => {
+    fase = null;
+    if (largo.matches || e.touches.length !== 1 || !document.body.classList.contains("sheet-open")) return;
+    if (sheet.scrollTop > 0 || e.target.closest("textarea, input, iframe")) return;
+    y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; dy = 0; t0 = Date.now(); fase = "talvez";
+  }, { passive: true });
+  sheet.addEventListener("touchmove", e => {
+    if (!fase) return;
+    const my = e.touches[0].clientY - y0, mx = e.touches[0].clientX - x0;
+    if (fase === "talvez") {
+      if (Math.abs(my) < 8 && Math.abs(mx) < 8) return;
+      // pra cima, de lado (fileira de capas) ou já rolou: deixa a rolagem normal
+      if (my <= 0 || Math.abs(mx) > my || sheet.scrollTop > 0 || !e.cancelable) { fase = null; return; }
+      fase = "puxando"; sheet.style.transition = "none";
+    }
+    if (e.cancelable) e.preventDefault();
+    dy = Math.max(0, my);
+    sheet.style.transform = `translateY(${dy}px)`;
+    sheetBg.style.opacity = String(Math.max(0.3, 1 - dy / 500));
+  }, { passive: false });
+  const solta = () => {
+    if (fase !== "puxando") { fase = null; return; }
+    fase = null;
+    const rapido = dy > 50 && dy / Math.max(1, Date.now() - t0) > 0.6;
+    const fecha = rapido || dy > Math.min(150, sheet.offsetHeight * 0.3);
+    sheet.style.transition = ""; sheet.style.transform = ""; sheetBg.style.opacity = "";
+    if (fecha) closeSheet();
+  };
+  sheet.addEventListener("touchend", solta);
+  sheet.addEventListener("touchcancel", solta);
+})();
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") closeSheet();
   // No computador: "/" abre a busca.
