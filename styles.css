@@ -109,6 +109,12 @@ nav.bottom button.on .ni{ filter:none; opacity:1; transform:translateY(-1px); }
 .searchbar:focus-within{ border-color:var(--gold); }
 .searchbar input{ flex:1; background:none; border:none; outline:none; color:var(--text); padding:14px 0; font-size:16px; }
 
+/* procurar dentro da lista */
+.lsearch{ display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:0 12px; margin:6px 0 4px; }
+.lsearch:focus-within{ border-color:var(--gold); }
+.lsearch span{ font-size:14px; opacity:.7; }
+.lsearch input{ flex:1; min-width:0; background:none; border:none; outline:none; color:var(--text); padding:10px 0; font-size:16px; }
+
 /* folha de detalhes */
 .sheet-bg{ position:fixed; inset:0; background:#000a; z-index:40; opacity:0; pointer-events:none; transition:opacity .2s; }
 .sheet{ position:fixed; left:0; right:0; bottom:0; z-index:50; max-height:88vh; max-height:88dvh; overflow-y:auto; overscroll-behavior:contain;

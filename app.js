@@ -330,15 +330,13 @@ function loginError(err) {
 // ---------- MINHA LISTA ----------
 let listSeg = "want";
 let listType = "all";
+let listQ = ""; // procurar dentro da lista
+const semAcento = t => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+function bate(m, q) { return !q || semAcento(`${m.title} ${m.original || ""} ${m.memo || ""}`).includes(q); }
 function renderLista() {
   const items = store.all();
-  const want = items.filter(i => i.status === "want").sort(store.byQuality);
-  const seen = items.filter(i => i.status === "seen").sort((a, b) => (b.seenAt || 0) - (a.seenAt || 0));
-  const src = (listSeg === "want" ? want : seen).filter(i => listType === "all" || i.type === listType);
-  const vendo = listSeg === "want" && listType !== "movie"
-    ? want.filter(i => i.type === "tv" && i.prog).sort((a, b) => (b.prog.at || 0) - (a.prog.at || 0)) : [];
-
   if (!items.length) {
+    listQ = "";
     view.innerHTML = `
       <div class="empty">
         <div class="empty-emoji">🍿</div>
@@ -349,32 +347,59 @@ function renderLista() {
     $("#goSearch").onclick = () => go("buscar");
     return;
   }
-
+  const nWant = items.filter(i => i.status === "want").length, nSeen = items.length - nWant;
+  // Redesenhou com a pessoa digitando na busca da lista: devolve o cursor pro lugar.
+  const ativo = document.activeElement && document.activeElement.id === "lq" ? document.activeElement.selectionStart : null;
   view.innerHTML = `
     <div class="lhead">
-    ${want.length ? `<button class="nowbar" id="nowBtn"><span>🍿 <b>O que ver agora?</b></span><span class="nowslot">${esc(now.slotFor().label)} ›</span></button>` : ""}
+    ${nWant ? `<button class="nowbar" id="nowBtn"><span>🍿 <b>O que ver agora?</b></span><span class="nowslot">${esc(now.slotFor().label)} ›</span></button>` : ""}
     <div class="seg" role="tablist">
-      <button role="tab" class="${listSeg === "want" ? "on" : ""}" data-seg="want">Quero ver <b>${want.length}</b></button>
-      <button role="tab" class="${listSeg === "seen" ? "on" : ""}" data-seg="seen">Já vi <b>${seen.length}</b></button>
+      <button role="tab" class="${listSeg === "want" ? "on" : ""}" data-seg="want">Quero ver <b>${nWant}</b></button>
+      <button role="tab" class="${listSeg === "seen" ? "on" : ""}" data-seg="seen">Já vi <b>${nSeen}</b></button>
     </div>
     <div class="chips">
       ${[["all", "Tudo"], ["movie", "Filmes"], ["tv", "Séries"]].map(([k, l]) => `<button class="chip ${listType === k ? "on" : ""}" data-type="${k}">${l}</button>`).join("")}
     </div>
+    ${items.length >= 8 || listQ ? `<div class="lsearch"><span aria-hidden="true">🔎</span><input id="lq" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Procurar na minha lista…" value="${esc(listQ)}" aria-label="Procurar na minha lista"></div>` : ""}
     </div>
-    ${vendo.length ? continuarHTML(vendo) : ""}
-    ${src.length ? `<ol class="queue">${src.map((m, k) => rowHTML(m, k, src.length)).join("")}</ol>`
-      : `<p class="muted center pad">${listSeg === "want" ? "Nada aqui nesse filtro." : "Quando marcar algo como visto, aparece aqui."}</p>`}
-  `;
+    <div id="lbody"></div>`;
   const nb = $("#nowBtn"); if (nb) nb.onclick = openNow;
-  view.querySelectorAll("[data-ep]").forEach(b => b.onclick = e => { e.stopPropagation(); avancaEp(b.dataset.ep); });
-  view.querySelectorAll("[data-cont]").forEach(c => c.onclick = () => { const it = store.get(c.dataset.cont); if (it) openDetails(it); });
-  if (bumpKey) {
-    view.querySelectorAll("[data-pkey]").forEach(el => { if (el.dataset.pkey === bumpKey) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); } });
-    bumpKey = null;
-  }
   view.querySelectorAll("[data-seg]").forEach(b => b.onclick = () => { if (listSeg !== b.dataset.seg) som.selecao(); listSeg = b.dataset.seg; renderLista(); });
   view.querySelectorAll("[data-type]").forEach(b => b.onclick = () => { if (listType !== b.dataset.type) som.selecao(); listType = b.dataset.type; renderLista(); });
-  view.querySelectorAll(".row").forEach(r => {
+  const lq = $("#lq");
+  if (lq) {
+    lq.addEventListener("input", () => { listQ = lq.value; desenhaFila(); });
+    lq.addEventListener("keydown", e => { if (e.key === "Enter") lq.blur(); });
+    if (ativo != null) { lq.focus({ preventScroll: true }); try { lq.setSelectionRange(ativo, ativo); } catch (e) { /* ignora */ } }
+  }
+  desenhaFila();
+}
+// Só a fila (o que muda enquanto a pessoa digita na busca da lista).
+function desenhaFila() {
+  const box = $("#lbody"); if (!box) return;
+  const q = semAcento(listQ.trim());
+  const doTipo = store.all().filter(i => listType === "all" || i.type === listType);
+  const want = doTipo.filter(i => i.status === "want").sort(store.byQuality);
+  const seen = doTipo.filter(i => i.status === "seen").sort((a, b) => (b.seenAt || 0) - (a.seenAt || 0));
+  const src = (listSeg === "want" ? want : seen).filter(m => bate(m, q));
+  const outro = q ? (listSeg === "want" ? seen : want).filter(m => bate(m, q)).length : 0;
+  const vendo = !q && listSeg === "want" && listType !== "movie"
+    ? want.filter(i => i.type === "tv" && i.prog).sort((a, b) => (b.prog.at || 0) - (a.prog.at || 0)) : [];
+  const nomeOutro = listSeg === "want" ? "Já vi" : "Quero ver";
+  box.innerHTML = `
+    ${vendo.length ? continuarHTML(vendo) : ""}
+    ${src.length ? `<ol class="queue">${src.map((m, k) => rowHTML(m, k, src.length)).join("")}</ol>`
+      : `<p class="muted center pad">${q ? `Não achei "${esc(listQ.trim())}" em ${listSeg === "want" ? "Quero ver" : "Já vi"}.` : listSeg === "want" ? "Nada aqui nesse filtro." : "Quando marcar algo como visto, aparece aqui."}</p>`}
+    ${outro ? `<button class="btn ghost wide" id="lqOutro">Tem ${outro} em ${nomeOutro} ›</button>` : ""}
+  `;
+  const lo = $("#lqOutro"); if (lo) lo.onclick = () => { som.selecao(); listSeg = listSeg === "want" ? "seen" : "want"; renderLista(); };
+  box.querySelectorAll("[data-ep]").forEach(b => b.onclick = e => { e.stopPropagation(); avancaEp(b.dataset.ep); });
+  box.querySelectorAll("[data-cont]").forEach(c => c.onclick = () => { const it = store.get(c.dataset.cont); if (it) openDetails(it); });
+  if (bumpKey) {
+    box.querySelectorAll("[data-pkey]").forEach(el => { if (el.dataset.pkey === bumpKey) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); } });
+    bumpKey = null;
+  }
+  box.querySelectorAll(".row").forEach(r => {
     r.onclick = e => {
       const it = store.get(r.dataset.key);
       if (it) openDetails(it);
