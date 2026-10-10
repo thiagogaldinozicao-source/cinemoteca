@@ -254,9 +254,10 @@ revoke all on function public.push_config() from public, anon, authenticated;
 revoke all on function public.avisa_msg() from public, anon, authenticated;
 revoke all on function public.avisa_ind() from public, anon, authenticated;
 
--- Sugestão esperta: roda de hora em hora; a função "push" decide se agora é um
+-- Sugestão esperta: roda de hora em hora das 9h às 22h de Brasília (12h–01h UTC, de
+-- madrugada nem chama); a função "push" decide se agora é um
 -- bom momento pra cada pessoa (horário dela, dia da semana, feriado, série em andamento).
-select cron.schedule('cinemoteca-sugestao', '40 * * * *', $c$
+select cron.schedule('cinemoteca-sugestao', '40 0,1,12-23 * * *', $c$
   select net.http_post(
     url := (select decrypted_secret from vault.decrypted_secrets where name = 'push_url'),
     body := '{"tipo":"sug"}'::jsonb,
@@ -264,6 +265,10 @@ select cron.schedule('cinemoteca-sugestao', '40 * * * *', $c$
       (select decrypted_secret from vault.decrypted_secrets where name = 'push_segredo')),
     timeout_milliseconds := 30000)
 $c$);
+
+-- O histórico do agendamento cresce pra sempre: uma vez por semana apaga o que tem mais de 14 dias.
+select cron.schedule('cinemoteca-limpa-historico', '15 6 * * 0',
+  $c$delete from cron.job_run_details where end_time < now() - interval '14 days'$c$);
 
 -- ---------- segredos (rodar uma vez, NÃO commitar os valores) ----------
 -- select vault.create_secret('<chave publica VAPID>', 'vapid_publico');

@@ -34,13 +34,19 @@ const primeiro = (n: string) => String(n).split(" ")[0];
 const cortar = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
 // Número no ícone do app: mensagens não lidas + indicações novas.
+// Filme mandado na conversa também é indicação: conta uma vez só.
 async function pendentes(user: string) {
-  const [m, i] = await Promise.all([
-    fetch(`${URL_}/rest/v1/mensagens?select=id&para=eq.${user}&lida=is.false`, { headers: { ...H, Prefer: "count=exact", Range: "0-0" } }),
-    fetch(`${URL_}/rest/v1/indicacoes?select=id&para=eq.${user}&estado=eq.nova`, { headers: { ...H, Prefer: "count=exact", Range: "0-0" } }),
-  ]);
-  const n = (r: Response) => +((r.headers.get("content-range") || "/0").split("/")[1] || 0);
-  return n(m) + n(i);
+  try {
+    const [m, i]: [{ de: string; chave: string | null }[], { de: string; key: string }[]] = await Promise.all([
+      db(`mensagens?select=de,chave:item->>key&para=eq.${user}&lida=is.false&limit=300`),
+      db(`indicacoes?select=de,key&para=eq.${user}&estado=eq.nova&limit=300`),
+    ]);
+    const naConversa = new Set(m.filter(x => x.chave).map(x => `${x.de}|${x.chave}`));
+    return m.length + i.filter(x => !naConversa.has(`${x.de}|${x.key}`)).length;
+  } catch (e) {
+    console.error("pendentes", String(e)); // o número do ícone nunca pode travar o aviso
+    return undefined;
+  }
 }
 
 async function mandar(user: string, tipo: string, payload: Record<string, unknown>) {
@@ -88,13 +94,20 @@ async function ind(id: number) {
 }
 
 // ---------- sugestão esperta ----------
-// Roda de hora em hora. Pra cada pessoa decide se AGORA é um bom momento:
+// Roda de hora em hora, das 9h às 22h. Pra cada pessoa decide se AGORA é um bom momento:
 // o horário em que ela costuma abrir o app, o dia da semana e feriado.
 // Regras: nunca entre 23h e 9h, no máximo 1 por dia e 4 por semana, e nada se
 // a pessoa já abriu o app hoje (não precisa ser chamada).
-const FERIADOS = new Set(["01-01", "04-21", "05-01", "09-07", "10-12", "11-02", "11-15", "11-20", "12-25",
-  "2026-02-16", "2026-02-17", "2026-04-03", "2026-06-04", "2027-02-08", "2027-02-09", "2027-03-26", "2027-05-27",
-  "2028-02-28", "2028-02-29", "2028-04-14", "2028-06-15"]);
+const FERIADOS = new Set(["01-01", "04-21", "05-01", "09-07", "10-12", "11-02", "11-15", "11-20", "12-25"]);
+// Feriados que mudam de data (segunda e terça de Carnaval, Sexta Santa, Corpus Christi):
+// calculados pela Páscoa de cada ano, então não precisa atualizar lista nenhuma.
+function moveis(ano: number) {
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4;
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const pascoa = Date.UTC(ano, Math.floor((h + l - 7 * m + 114) / 31) - 1, ((h + l - 7 * m + 114) % 31) + 1);
+  return [-48, -47, -2, 60].map(n => new Date(pascoa + n * 864e5).toISOString().slice(0, 10));
+}
 const LEVES = new Set([35, 16, 10751, 10402, 12]); // comédia, animação, família, música, aventura
 const q = (d: any) => ((+d.vote || 0) * (+d.votes || 0) + 6.5 * 200) / ((+d.votes || 0) + 200);
 const sorteia = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
@@ -106,7 +119,7 @@ function agoraBR() {
     day: "2-digit", hour: "2-digit", hour12: false, weekday: "short" }).formatToParts(new Date()).map(x => [x.type, x.value]));
   const data = `${p.year}-${p.month}-${p.day}`;
   const dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday);
-  return { data, hora: +p.hour % 24, dow, feriado: FERIADOS.has(data) || FERIADOS.has(data.slice(5)) };
+  return { data, hora: +p.hour % 24, dow, feriado: FERIADOS.has(data.slice(5)) || moveis(+p.year).includes(data) };
 }
 // Hora favorita da noite (17h–22h) pelo histórico de quando abre o app; sem histórico, 20h.
 function favorita(horas: number[]) {
