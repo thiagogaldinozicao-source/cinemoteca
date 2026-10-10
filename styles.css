@@ -140,8 +140,8 @@ body.sheet-open .sheet{ transform:translateY(0); }
 .syn{ font-size:14px; line-height:1.6; color:#d6d6de; }
 .tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; }
 .tag{ font-size:11.5px; color:var(--dim); background:#ffffff0c; padding:4px 10px; border-radius:100px; }
-.stars{ display:flex; gap:4px; flex-wrap:wrap; }
-.star{ width:30px; height:32px; border-radius:8px; background:#ffffff10; color:var(--dim); font-weight:700; font-size:13px; }
+.stars{ display:grid; grid-template-columns:repeat(5,1fr); gap:6px; max-width:420px; }
+.star{ height:44px; border-radius:10px; background:#ffffff10; color:var(--dim); font-weight:700; font-size:15px; }
 .star.on{ background:var(--gold); color:#1a1400; }
 .pgroup{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
 .plbl{ font-size:11.5px; color:var(--dim); min-width:78px; display:inline-block; }
