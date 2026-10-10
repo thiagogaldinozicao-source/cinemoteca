@@ -682,6 +682,7 @@ const SHEET_TOP = `<div class="grab"></div><div class="closebar"><button class="
 function openSheet(html, mudo) {
   if (!mudo) document.body.classList.contains("sheet-open") ? som.pagina() : som.abre();
   sheetToken++;
+  delete sheet.dataset.key;
   sheet.innerHTML = `${SHEET_TOP}${html}`;
   sheet.scrollTop = 0;
   document.body.classList.add("sheet-open");
@@ -742,6 +743,7 @@ document.addEventListener("keydown", e => {
 
 async function openDetails(m) {
   openSheet(detailsHTML(m, null));
+  sheet.dataset.key = m.key;
   wireDetails(m);
   if (!tmdb.ready()) return;
   if (detailsCtl) detailsCtl.abort();
@@ -1027,8 +1029,17 @@ function wireDetails(m) {
     if (act === "want") { ok = saved ? store.setStatus(m.key, "want") : store.add(m, "want"); if (ok) toast("Salvo em Quero ver. Quer anotar quem indicou?"); }
     if (act === "seen") { ok = saved ? store.setStatus(m.key, "seen") : store.add(m, "seen"); if (ok) toast("Marcado como visto. Dá uma nota!"); }
     if (act === "remove") {
-      if (!confirm(`Tirar ${m.title} da sua lista?`)) return;
-      ok = store.remove(m.key); if (ok) { som.tirar(); toast("Tirado da lista"); }
+      // igual ao deslizar na lista: tira na hora e dá a chance de desfazer
+      const copia = saved ? JSON.parse(JSON.stringify(saved)) : null;
+      ok = store.remove(m.key);
+      if (ok) {
+        som.tirar();
+        toast(`${m.title} saiu da lista`, copia ? "Desfazer" : null, () => {
+          som.desfazer(); store.restore(copia); toast("Voltou pra lista");
+          if (document.body.classList.contains("sheet-open") && sheet.dataset.key === m.key) refreshSheet(m);
+          if (tab === "buscar") runSearch();
+        });
+      }
     }
     if (!ok) { som.erro(); toast("Não consegui salvar no aparelho."); return; }
     refreshSheet(m);
